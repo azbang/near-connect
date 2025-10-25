@@ -3,7 +3,6 @@ import { Provider as SolanaProvider } from "@reown/appkit-utils/solana";
 import SolanaAccount from "./wallet";
 import { WalletType } from "../OmniWallet";
 import { OmniConnector } from "../OmniConnector";
-import { getOrCreateAppKit } from "../evm/reown";
 
 class SolanaConnector extends OmniConnector<SolanaAccount> {
   appKit: AppKit;
@@ -14,10 +13,10 @@ class SolanaConnector extends OmniConnector<SolanaAccount> {
   id = "solana-reown";
   isSupported = true;
 
-  constructor(appKit?: AppKit) {
+  constructor(appKit: AppKit) {
     super();
 
-    this.appKit = appKit || getOrCreateAppKit();
+    this.appKit = appKit;
     this.appKit.subscribeProviders(async (state) => {
       const solanaProvider = state["solana"] as SolanaProvider;
       if (solanaProvider) this.setWallet(new SolanaAccount(this, solanaProvider));

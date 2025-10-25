@@ -14,10 +14,12 @@ Unlike near-wallet-selector, this library provides a secure execution environmen
 
 - HOT Wallet
 - Meteor Wallet
+- Intear Wallet
 - MyNearWallet
 - Nightly Wallet
 - Near Mobile Wallet
 - Unity Wallet
+- OKX Wallet
 - any wallet via WalletConnect
 
 ## Dapp integration

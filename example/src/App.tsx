@@ -21,6 +21,16 @@ export const ExampleNEAR: FC = () => {
       manifest: "/hot-connector/manifest.json",
       providers: { mainnet: ["https://relmn.aurora.dev"] },
       network,
+
+      walletConnect: {
+        projectId: "1292473190ce7eb75c9de67e15aaad99",
+        metadata: {
+          name: "Example App",
+          description: "Example App",
+          url: "https://example.com",
+          icons: ["/favicon.ico"],
+        },
+      },
     });
 
     connector.on("wallet:signIn", async (t) => {

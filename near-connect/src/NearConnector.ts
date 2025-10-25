@@ -27,6 +27,11 @@ interface NearConnectorOptions {
   logger?: Logger;
 }
 
+const defaultManifests = [
+  "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/manifest.json",
+  "https://cdn.jsdelivr.net/gh/azbang/hot-connector/repository/manifest.json",
+];
+
 export class NearConnector {
   private storage: DataStorage;
   readonly events: EventEmitter<EventMap>;
@@ -147,9 +152,14 @@ export class NearConnector {
   };
 
   private async _loadManifest(manifestUrl?: string) {
-    let manifestEndpoint = manifestUrl ? manifestUrl : "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/manifest.json";
-    const manifest = (await (await fetch(manifestEndpoint)).json()) as { wallets: WalletManifest[]; version: string };
-    return manifest;
+    const manifestEndpoints = manifestUrl ? [manifestUrl] : defaultManifests;
+    for (const endpoint of manifestEndpoints) {
+      const res = await fetch(endpoint).catch(() => null);
+      if (!res || !res.ok) continue;
+      return await res.json(); // TODO: Validate this
+    }
+
+    throw new Error("Failed to load manifest");
   }
 
   async disconnectIfBanned(wallet: NearWalletBase, accounts: Account[]) {

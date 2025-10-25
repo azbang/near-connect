@@ -1,4 +1,4 @@
-import type { KeyPair, providers } from "near-api-js";
+import type { providers } from "near-api-js";
 import { InternalAction, SignMessageParams } from "@near-wallet-selector/core";
 import type { AccessKeyViewRaw } from "near-api-js/lib/providers/provider.js";
 import { createAction } from "@near-wallet-selector/wallet-utils";
@@ -6,6 +6,7 @@ import { WalletConnectModal } from "@walletconnect/modal";
 import * as nearAPI from "near-api-js";
 
 import { SelectorStorageKeyStore } from "./keystore";
+import { NearRpc } from "./rpc";
 
 interface Transaction {
   signerId: string;
@@ -13,20 +14,10 @@ interface Transaction {
   actions: Array<InternalAction>;
 }
 
-interface LimitedAccessKeyPair {
-  accountId: string;
-  keyPair: KeyPair;
-}
-
-interface LimitedAccessAccount {
-  accountId: string;
-  publicKey: string;
-}
-
 const WC_METHODS = ["near_signIn", "near_signOut", "near_getAccounts", "near_signTransaction", "near_signTransactions", "near_signMessage"];
 const WC_EVENTS = ["chainChanged", "accountsChanged"];
 
-const provider = new nearAPI.providers.JsonRpcProvider({ url: "https://relmn.aurora.dev" });
+const provider = new NearRpc(window.selector?.providers?.mainnet);
 const keystore = new SelectorStorageKeyStore();
 
 interface RetryOptions {
@@ -50,6 +41,35 @@ const retry = <Value>(func: () => Promise<Value>, opts: RetryOptions = {}): Prom
 
 let modal: typeof WalletConnectModal.prototype;
 const connect = async (network: string) => {
+  window.selector.ui.showIframe();
+  const rect = document.createElement("div");
+  rect.innerHTML = `<svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="xMidYMid"
+      width="80"
+      height="80"
+      style="shape-rendering: auto; display: block; background: transparent;"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+    >
+      <circle stroke-dasharray="75.39822368615503 27.132741228718345" r="16" stroke-width="4" stroke="#fff" fill="none" cy="50" cx="50">
+        <animateTransform
+          keyTimes="0;1"
+          values="0 50 50;360 50 50"
+          dur="1.408450704225352s"
+          repeatCount="indefinite"
+          type="rotate"
+          attributeName="transform"
+        ></animateTransform>
+      </circle>
+    </svg>`;
+
+  document.body.appendChild(rect);
+  rect.style.position = "absolute";
+  rect.style.top = "50%";
+  rect.style.left = "50%";
+  rect.style.transform = "translate(-50%, -50%)";
+
   if (!modal) {
     modal = new WalletConnectModal({
       chains: [`near:mainnet`, `near:testnet`],
@@ -69,9 +89,8 @@ const connect = async (network: string) => {
     },
   });
 
-  window.selector.ui.showIframe();
   await new Promise((resolve) => setTimeout(resolve, 100));
-  modal.openModal({ uri: result.uri, standaloneChains: [`near:${network}`] });
+  await modal.openModal({ uri: result.uri, standaloneChains: [`near:${network}`] });
 
   return new Promise(async (resolve, reject) => {
     modal.subscribeModal(({ open }) => {
@@ -109,20 +128,10 @@ const WalletConnect = async () => {
   const getAccounts = async (network: string): Promise<Array<{ accountId: string; publicKey: string }>> => {
     const session = await window.selector.walletConnect.getSession();
     if (!session) return [];
-
-    const accounts = session.namespaces["near"].accounts || [];
-    const newAccounts = [];
-
-    for (let i = 0; i < accounts.length; i++) {
-      const signer = new nearAPI.InMemorySigner(keystore);
-      const publicKey = await signer.getPublicKey(accounts[i].split(":")[2], network);
-      newAccounts.push({
-        accountId: accounts[i].split(":")[2],
-        publicKey: publicKey ? publicKey.toString() : "",
-      });
-    }
-
-    return newAccounts;
+    return session.namespaces["near"].accounts.map((account: string) => ({
+      accountId: account.replace(`near:${network}:`, ""),
+      publicKey: "",
+    }));
   };
 
   const validateAccessKey = (transaction: { receiverId: string; actions: Array<InternalAction> }, accessKey: AccessKeyViewRaw) => {
@@ -136,43 +145,6 @@ const WalletConnect = async () => {
       if (method_names.length && method_names.includes(methodName)) return false;
       return parseFloat(deposit) <= 0;
     });
-  };
-
-  const signTransactions = async (transactions: Array<{ signerId: string; receiverId: string; actions: Array<InternalAction> }>, network: string) => {
-    const signer = new nearAPI.InMemorySigner(keystore);
-    const signedTransactions: Array<nearAPI.transactions.SignedTransaction> = [];
-    const block = await provider.block({ finality: "final" });
-
-    for (let i = 0; i < transactions.length; i += 1) {
-      const transaction = transactions[i];
-      const publicKey = await signer.getPublicKey(transaction.signerId, network);
-      if (!publicKey) throw new Error("No public key found");
-
-      const accessKey = await provider.query<AccessKeyViewRaw>({
-        account_id: transaction.signerId,
-        public_key: publicKey.toString(),
-        request_type: "view_access_key",
-        finality: "final",
-      });
-
-      if (!validateAccessKey(transaction, accessKey)) {
-        throw new Error("Invalid access key");
-      }
-
-      const tx = nearAPI.transactions.createTransaction(
-        transactions[i].signerId,
-        nearAPI.utils.PublicKey.from(publicKey.toString()),
-        transactions[i].receiverId,
-        accessKey.nonce + i + 1,
-        transaction.actions.map((action) => createAction(action)),
-        nearAPI.utils.serialize.base_decode(block.header.hash)
-      );
-
-      const [, signedTx] = await nearAPI.transactions.signTransaction(tx, signer, transactions[i].signerId, network);
-      signedTransactions.push(signedTx);
-    }
-
-    return signedTransactions;
   };
 
   const requestAccounts = async (network: string) => {
@@ -207,10 +179,7 @@ const WalletConnect = async () => {
   const requestSignTransaction = async (transaction: Transaction, network: string) => {
     const accounts = await requestAccounts(network);
     const account = accounts.find((x: any) => x.accountId === transaction.signerId);
-
-    if (!account) {
-      throw new Error("Invalid signer id");
-    }
+    if (!account) throw new Error("Invalid signer id");
 
     const [block, accessKey] = await Promise.all([
       provider.block({ finality: "final" }),
@@ -288,67 +257,12 @@ const WalletConnect = async () => {
     });
   };
 
-  const createLimitedAccessKeyPairs = async (network: string): Promise<Array<LimitedAccessKeyPair>> => {
-    const accounts = await getAccounts(network);
-    return accounts.map(({ accountId }) => ({
-      keyPair: nearAPI.utils.KeyPair.fromRandom("ed25519"),
-      accountId,
-    }));
-  };
-
-  const requestSignIn = async (permission: nearAPI.transactions.FunctionCallPermission, network: string) => {
-    const keyPairs = await createLimitedAccessKeyPairs(network);
-    const limitedAccessAccounts: Array<LimitedAccessAccount> = keyPairs.map(({ accountId, keyPair }) => ({
-      publicKey: keyPair.getPublicKey().toString(),
-      accountId,
-    }));
-
-    await window.selector.walletConnect.request({
-      topic: (await window.selector.walletConnect.getSession()).topic,
-      chainId: `near:${network}`,
-      request: {
-        method: "near_signIn",
-        params: {
-          permission: permission,
-          accounts: limitedAccessAccounts,
-        },
-      },
-    });
-
-    for (let i = 0; i < keyPairs.length; i += 1) {
-      const { accountId, keyPair } = keyPairs[i];
-      await keystore.setKey(network, accountId, keyPair);
-    }
-  };
-
   const requestSignOut = async (network: string) => {
     const accounts = await getAccounts(network);
-    const limitedAccessAccounts: Array<LimitedAccessAccount> = [];
-
-    for (let i = 0; i < accounts.length; i += 1) {
-      const account = accounts[i];
-      const keyPair = await keystore.getKey(network, account.accountId);
-      if (!keyPair) continue;
-
-      limitedAccessAccounts.push({
-        accountId: account.accountId,
-        publicKey: keyPair.getPublicKey().toString(),
-      });
-    }
-
-    if (!limitedAccessAccounts.length) {
-      return;
-    }
-
     await window.selector.walletConnect.request({
       topic: (await window.selector.walletConnect.getSession()).topic,
+      request: { method: "near_signOut", params: { accounts } },
       chainId: `near:${network}`,
-      request: {
-        method: "near_signOut",
-        params: {
-          accounts: limitedAccessAccounts,
-        },
-      },
     });
   };
 
@@ -360,17 +274,14 @@ const WalletConnect = async () => {
   };
 
   return {
-    async signIn({ contractId, methodNames = [], network }: any) {
+    async signIn({ network }: any) {
       try {
-        if (await window.selector.walletConnect.getSession()) {
-          await disconnect();
-        }
-
-        await connect(network);
-
-        await requestSignIn({ receiverId: contractId || "", methodNames }, network);
+        if (await window.selector.walletConnect.getSession()) await disconnect();
+        const session = await connect(network);
+        console.log("signIn", { network, session });
         return await getAccounts(network);
       } catch (err) {
+        console.error(err);
         await signOut(network);
         throw err;
       }
@@ -401,14 +312,8 @@ const WalletConnect = async () => {
       if (!accounts.length) throw new Error("Wallet not signed in");
       const signerId = accounts[0].accountId;
       const resolvedTransaction: Transaction = { signerId: signerId, receiverId: receiverId, actions };
-
-      try {
-        const [signedTx] = await signTransactions([resolvedTransaction], network);
-        return provider.sendTransaction(signedTx);
-      } catch (err) {
-        const signedTx = await requestSignTransaction(resolvedTransaction, network);
-        return provider.sendTransaction(signedTx);
-      }
+      const signedTx = await requestSignTransaction(resolvedTransaction, network);
+      return provider.sendTransaction(signedTx);
     },
 
     async signAndSendTransactions({ transactions, network }: { transactions: any[]; network: string }) {
@@ -422,25 +327,13 @@ const WalletConnect = async () => {
         actions: x.actions,
       }));
 
-      try {
-        const signedTxs = await signTransactions(resolvedTransactions, network);
-        const results: Array<providers.FinalExecutionOutcome> = [];
-
-        for (let i = 0; i < signedTxs.length; i += 1) {
-          results.push(await provider.sendTransaction(signedTxs[i]));
-        }
-
-        return results;
-      } catch (err) {
-        const signedTxs = await requestSignTransactions(resolvedTransactions, network);
-        const results: Array<providers.FinalExecutionOutcome> = [];
-
-        for (let i = 0; i < signedTxs.length; i += 1) {
-          results.push(await provider.sendTransaction(signedTxs[i]));
-        }
-
-        return results;
+      const signedTxs = await requestSignTransactions(resolvedTransactions, network);
+      const results: Array<providers.FinalExecutionOutcome> = [];
+      for (let i = 0; i < signedTxs.length; i += 1) {
+        results.push(await provider.sendTransaction(signedTxs[i]));
       }
+
+      return results;
     },
 
     async createSignedTransaction() {

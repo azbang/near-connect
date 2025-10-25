@@ -28,12 +28,13 @@
     "@near-wallet-selector/modal-ui-js": "^8.9.12",
     "@noble/hashes": "^1.4.0",
     "@peersyst/near-mobile-signer": "^1.1.4",
+    "@types/node": "^24.9.1",
+    "@walletconnect/modal": "^2.7.0",
     "borsh": "^2.0.0",
     "patch-package": "^8.0.1",
     "qr-code-styling": "^1.9.2",
     "typescript": "^5.2.2",
     "vite": "^5.3.4",
-    "vite-plugin-node-polyfills": "^0.24.0",
-    "@walletconnect/modal": "^2.7.0"
+    "vite-plugin-node-polyfills": "^0.24.0"
   }
 }

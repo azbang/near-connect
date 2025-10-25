@@ -1,9 +1,8 @@
 import { AppKit } from "@reown/appkit";
 import { Provider as EvmProvider } from "@reown/appkit-utils/ethers";
 import { OmniConnector } from "../OmniConnector";
-import EvmAccount from "./wallet";
 import { WalletType } from "../OmniWallet";
-import { getOrCreateAppKit } from "./reown";
+import EvmAccount from "./wallet";
 
 class EvmConnector extends OmniConnector<EvmAccount> {
   appKit: AppKit;
@@ -14,10 +13,10 @@ class EvmConnector extends OmniConnector<EvmAccount> {
   isSupported = true;
   id = "evm-reown";
 
-  constructor(appKit?: AppKit) {
+  constructor(appKit: AppKit) {
     super();
 
-    this.appKit = appKit || getOrCreateAppKit();
+    this.appKit = appKit;
     this.appKit.subscribeProviders(async (state) => {
       const evmProvider = state["eip155"] as EvmProvider;
       if (evmProvider) this.setWallet(new EvmAccount(this, evmProvider));

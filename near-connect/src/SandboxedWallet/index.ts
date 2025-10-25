@@ -5,7 +5,6 @@ import {
   SignAndSendTransactionParams,
   SignAndSendTransactionsParams,
   SignedMessage,
-  SignInParams,
   SignMessageParams,
   WalletManifest,
 } from "../types/wallet";
@@ -19,9 +18,9 @@ export class SandboxWallet {
     this.executor = new SandboxExecutor(connector, manifest);
   }
 
-  async signIn(params?: SignInParams): Promise<Array<Account>> {
-    const network = params?.network || this.connector.network;
-    return this.executor.call("wallet:signIn", { ...params, network, contractId: params?.contractId || "" });
+  async signIn(data?: { network?: Network }): Promise<Array<Account>> {
+    const network = data?.network || this.connector.network;
+    return this.executor.call("wallet:signIn", { network });
   }
 
   async signOut(data?: { network?: Network }): Promise<void> {

@@ -1,3 +1,8 @@
+# 0.6.8
+
+- Add fallback for manifest
+- Remove contractId and methods from signIn method
+
 # 0.6.7
 
 - Move all intents specific code and multichain connector to @hot-labs/wibe3

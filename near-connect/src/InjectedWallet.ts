@@ -6,7 +6,6 @@ import {
   SignAndSendTransactionParams,
   SignAndSendTransactionsParams,
   SignedMessage,
-  SignInParams,
   SignMessageParams,
 } from "./types/wallet";
 import { NearConnector } from "./NearConnector";
@@ -18,9 +17,9 @@ export class InjectedWallet {
     return this.wallet.manifest;
   }
 
-  async signIn(params?: SignInParams): Promise<Array<Account>> {
-    const network = params?.network || this.connector.network;
-    return this.wallet.signIn({ ...params, network, contractId: params?.contractId || "" });
+  async signIn(data?: { network?: Network }): Promise<Array<Account>> {
+    const network = data?.network || this.connector.network;
+    return this.wallet.signIn({ network });
   }
 
   async signOut(data?: { network?: Network }): Promise<void> {

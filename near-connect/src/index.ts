@@ -8,7 +8,6 @@ export type {
   NearWalletBase,
   WalletManifest,
   EventNearWalletInjected,
-  SignInParams,
   SignMessageParams,
   SignedMessage,
   SignAndSendTransactionParams,

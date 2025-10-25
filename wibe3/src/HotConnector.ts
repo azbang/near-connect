@@ -1,3 +1,5 @@
+import { AppKit } from "@reown/appkit";
+
 import { MultichainPopup } from "./popups/MultichainPopup";
 import { EventEmitter } from "./events";
 
@@ -11,6 +13,13 @@ import SolanaConnector from "./solana/connector";
 import StellarConnector from "./stellar/connector";
 import TonConnector from "./ton/connector";
 
+export const near = () => new NearConnector();
+export const evm = (appKit: AppKit) => new EvmConnector(appKit);
+export const solana = (appKit: AppKit) => new SolanaConnector(appKit);
+export const stellar = () => new StellarConnector();
+export const ton = () => new TonConnector();
+export const passkey = () => new PasskeyConnector();
+
 export class HotConnector {
   private connectors: OmniConnector[] = [];
   private events = new EventEmitter<{
@@ -18,15 +27,9 @@ export class HotConnector {
     disconnect: { wallet: OmniWallet };
   }>();
 
-  constructor(options?: { connectors?: OmniConnector[] }) {
-    this.connectors = options?.connectors || [
-      new NearConnector(),
-      new EvmConnector(),
-      new SolanaConnector(),
-      new StellarConnector(),
-      new TonConnector(),
-      new PasskeyConnector(),
-    ];
+  constructor(options?: { connectors?: OmniConnector[]; appKit: AppKit }) {
+    if (options?.connectors == null && options?.appKit == null) throw new Error("You should configure connectors or appKit fields");
+    this.connectors = options?.connectors || [near(), evm(options.appKit), solana(options.appKit), stellar(), ton(), passkey()];
 
     this.connectors.forEach((t) => {
       t.onConnect((payload) => this.events.emit("connect", payload));

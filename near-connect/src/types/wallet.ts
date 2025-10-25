@@ -16,21 +16,6 @@ export interface Account {
   publicKey: string;
 }
 
-export interface SignInParams {
-  /**
-   * Account ID of the Smart Contract.
-   */
-  contractId?: string;
-  /**
-   * Specify limited access to particular methods on the Smart Contract.
-   */
-  methodNames?: Array<string>;
-  /**
-   * Specify the network to sign in to.
-   */
-  network?: Network;
-}
-
 export interface SignMessageParams {
   message: string;
   recipient: string;
@@ -118,7 +103,7 @@ export interface NearWalletBase {
   /**
    * Programmatically sign in. Hardware wallets (e.g. Ledger) require `derivationPaths` to validate access key permissions.
    */
-  signIn(params?: SignInParams): Promise<Array<Account>>;
+  signIn(data?: { network?: Network }): Promise<Array<Account>>;
   /**
    * Sign out from the wallet.
    */

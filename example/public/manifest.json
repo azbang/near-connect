@@ -206,6 +206,29 @@
       }
     },
     {
+      "id": "wallet-connect",
+      "name": "Wallet Connect",
+      "icon": "https://storage.herewallet.app/upload/2470b14a81fcf84e7cb53230311a7289b96a49ab880c7fa7a22765d7cdeb1271.svg",
+      "description": "Wallet Connect is a protocol for connecting wallets to dapps.",
+      "website": "https://reown.com",
+      "version": "1.0.0",
+      "executor": "/hot-connector/repository/wallet-connect.js",
+      "type": "sandbox",
+      "platform": {},
+      "permissions": {
+        "storage": true,
+        "clipboardWrite": true,
+        "walletConnect": true
+      },
+      "features": {
+        "signMessage": true,
+        "signInWithoutAddKey": true,
+        "signAndSendTransaction": true,
+        "signAndSendTransactions": true,
+        "testnet": true
+      }
+    },
+    {
       "id": "unity-wallet",
       "name": "Unity Wallet",
       "icon": "https://storage.herewallet.app/upload/e596491a4fcd2d352ffff15bfe4a3fc6c0d0ed29ac9d43edc7501d20d9b667bc.png",

@@ -19,4 +19,5 @@ export { HotConnector } from "./HotConnector";
 export { default as Intents } from "./Intents";
 export * from "./types";
 
+export { near, evm, solana, stellar, ton, passkey } from "./HotConnector";
 export { useWibe3 } from "./useWibe3";

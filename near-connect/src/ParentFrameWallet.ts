@@ -7,7 +7,6 @@ import {
   SignAndSendTransactionParams,
   SignAndSendTransactionsParams,
   SignedMessage,
-  SignInParams,
   SignMessageParams,
   WalletManifest,
 } from "./types/wallet";
@@ -32,9 +31,9 @@ export class ParentFrameWallet {
     });
   }
 
-  async signIn(params?: SignInParams): Promise<Array<Account>> {
-    const network = params?.network || this.connector.network;
-    const result = await this.callParentFrame("near:signIn", { ...params, network, contractId: params?.contractId || "" });
+  async signIn(data?: { network?: Network }): Promise<Array<Account>> {
+    const network = data?.network || this.connector.network;
+    const result = await this.callParentFrame("near:signIn", { network });
     if (Array.isArray(result)) return result;
     return [result as Account];
   }
