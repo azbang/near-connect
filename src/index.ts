@@ -14,4 +14,8 @@ export type {
   SignAndSendTransactionsParams,
 } from "./types/wallet";
 
+export type {
+  WalletPlugin,
+} from "./types/plugin";
+
 export * as tx from "./types/transactions";
