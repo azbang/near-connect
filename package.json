@@ -1,6 +1,6 @@
 {
   "name": "@hot-labs/near-connect",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "type": "commonjs",
   "main": "./build/index.js",
   "types": "./build/index.d.ts",
@@ -25,7 +25,6 @@
   "devDependencies": {
     "@near-js/transactions": "^2.5.1",
     "@near-js/types": "^2.5.1",
-    "@walletconnect/sign-client": "^2.21.8",
     "typescript": "^5.2.2",
     "vite": "^7.2.2",
     "vite-plugin-node-polyfills": "^0.24.0"

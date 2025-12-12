@@ -1,11 +1,9 @@
-import type { default as WalletConnectSignClient } from "@walletconnect/sign-client";
-
 import { EventEmitter } from "./helpers/events";
 import { NearWalletsPopup } from "./popups/NearWalletsPopup";
 import { LocalStorage, DataStorage } from "./helpers/storage";
 import IndexedDB from "./helpers/indexdb";
 
-import { EventNearWalletInjected, WalletManifest, Network, WalletFeatures, Logger, NearWalletBase } from "./types";
+import { EventNearWalletInjected, WalletManifest, Network, WalletFeatures, Logger, NearWalletBase, AbstractWalletConnect } from "./types";
 import { ParentFrameWallet } from "./ParentFrameWallet";
 import { InjectedWallet } from "./InjectedWallet";
 import { SandboxWallet } from "./SandboxedWallet";
@@ -19,7 +17,7 @@ interface NearConnectorOptions {
   network?: Network;
 
   manifest?: string | { wallets: WalletManifest[]; version: string };
-  walletConnect?: WalletConnectSignClient;
+  walletConnect?: Promise<AbstractWalletConnect> | AbstractWalletConnect;
 
   events?: EventEmitter<EventMap>;
   storage?: DataStorage;
@@ -53,7 +51,7 @@ export class NearConnector {
 
   providers: { mainnet?: string[]; testnet?: string[] } = { mainnet: [], testnet: [] };
   signInData?: { contractId?: string; methodNames?: Array<string> };
-  walletConnect?: WalletConnectSignClient;
+  walletConnect?: Promise<AbstractWalletConnect> | AbstractWalletConnect;
 
   excludedWallets: string[] = [];
   autoConnect?: boolean;
