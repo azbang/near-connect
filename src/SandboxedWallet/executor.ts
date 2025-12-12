@@ -129,8 +129,8 @@ class SandboxExecutor {
     if (event.data.method === "walletConnect.connect") {
       this.assertPermissions(iframe, "walletConnect", event);
       try {
-        const client = await this.connector.getWalletConnect();
-        const result = await client.connect(event.data.params);
+        if (!this.connector.walletConnect) throw new Error("WalletConnect is not configured");
+        const result = await this.connector.walletConnect.connect(event.data.params);
         result.approval();
         success({ uri: result.uri });
       } catch (e) {
@@ -140,16 +140,17 @@ class SandboxExecutor {
     }
 
     if (event.data.method === "walletConnect.getProjectId") {
+      if (!this.connector.walletConnect) throw new Error("WalletConnect is not configured");
       this.assertPermissions(iframe, "walletConnect", event);
-      success(this.connector.walletConnectProjectId);
+      success(this.connector.walletConnect.core.projectId);
       return;
     }
 
     if (event.data.method === "walletConnect.disconnect") {
       this.assertPermissions(iframe, "walletConnect", event);
       try {
-        const client = await this.connector.getWalletConnect();
-        const result = await client.disconnect(event.data.params);
+        if (!this.connector.walletConnect) throw new Error("WalletConnect is not configured");
+        const result = await this.connector.walletConnect.disconnect(event.data.params);
         success(result);
       } catch (e) {
         failed(e);
@@ -160,7 +161,8 @@ class SandboxExecutor {
     if (event.data.method === "walletConnect.getSession") {
       this.assertPermissions(iframe, "walletConnect", event);
       try {
-        const client = await this.connector.getWalletConnect();
+        const client = this.connector.walletConnect;
+        if (!client) throw new Error("WalletConnect is not configured");
         const key = client.session.keys[client.session.keys.length - 1];
         const session = key ? client.session.get(key) : null;
         success(session ? { topic: session.topic, namespaces: session.namespaces } : null);
@@ -173,7 +175,8 @@ class SandboxExecutor {
     if (event.data.method === "walletConnect.request") {
       this.assertPermissions(iframe, "walletConnect", event);
       try {
-        const client = await this.connector.getWalletConnect();
+        const client = this.connector.walletConnect;
+        if (!client) throw new Error("WalletConnect is not configured");
         const result = await client.request(event.data.params);
         success(result);
       } catch (e) {

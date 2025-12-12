@@ -108,7 +108,6 @@ body {
     cursor: pointer;
     transition: background-color 0.3s ease;
     width: 100%;
-    max-width: 15em;
 
     &:hover {
         background-color: rgb(60, 60, 60);

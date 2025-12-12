@@ -46,7 +46,7 @@ export const SendTx = ({ wallet, network }: IPropsWalletAction) => {
   }
 
   return (
-    <div className={"input-form"}>
+    <div className={"input-form"} style={{ width: 500 }}>
       <p className={"input-form-label"}>Send Transaction (Action Builder)</p>
 
       <div className={"flex flex-col gap-4"}>
@@ -55,56 +55,59 @@ export const SendTx = ({ wallet, network }: IPropsWalletAction) => {
             <p className={"input-label"}>Receiver Account</p>
             <input className={"input-text"} type={"text"} value={receiverId} onChange={(e) => setReceiverId(e.target.value)} />
           </div>
-
-          <div className={"input-group w-[14rem]"}>
-            <p className={"input-label"}>New action</p>
-            <select className={"input-text"} value={newActionType} onChange={(e) => setNewActionType(e.target.value as ActionType)}>
-              {ACTION_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button className={"input-button compact"} onClick={() => setActions((prev) => [...prev, defaultActionForm(newActionType, makeId(), network)])}>
-            Add
-          </button>
-          <button className={"input-button compact"} onClick={() => setActions(() => [defaultActionForm("Transfer", makeId(), network)])}>
-            Reset
-          </button>
-          <button className={"input-button compact"} onClick={() => sendTx()}>
-            Send tx
-          </button>
         </div>
 
-        <div className={"input-group"}>
-          <p className={"input-label"}>Actions</p>
-          <div className={"flex flex-col gap-2"}>
-            {actions.map((a, idx) => {
-              const move = (dir: -1 | 1) => {
-                setActions((prev) => {
-                  const i = prev.findIndex((x) => x.id === a.id);
-                  const j = i + dir;
-                  if (i < 0 || j < 0 || j >= prev.length) return prev;
-                  const out = [...prev];
-                  const tmp = out[i];
-                  out[i] = out[j];
-                  out[j] = tmp;
-                  return out;
-                });
-              };
+        {actions.length > 0 && (
+          <div className={"input-group"}>
+            <p className={"input-label"}>Actions</p>
+            <div className={"flex flex-col gap-2"}>
+              {actions.map((a, idx) => {
+                const move = (dir: -1 | 1) => {
+                  setActions((prev) => {
+                    const i = prev.findIndex((x) => x.id === a.id);
+                    const j = i + dir;
+                    if (i < 0 || j < 0 || j >= prev.length) return prev;
+                    const out = [...prev];
+                    const tmp = out[i];
+                    out[i] = out[j];
+                    out[j] = tmp;
+                    return out;
+                  });
+                };
 
-              const remove = () => setActions((prev) => prev.filter((x) => x.id !== a.id));
-              const setA = (next: ActionForm) => setActions((prev) => prev.map((x) => (x.id === a.id ? next : x)));
-              const setType = (type: ActionType) => setActions((prev) => prev.map((x) => (x.id === a.id ? defaultActionForm(type, a.id, network) : x)));
+                const remove = () => setActions((prev) => prev.filter((x) => x.id !== a.id));
+                const setA = (next: ActionForm) => setActions((prev) => prev.map((x) => (x.id === a.id ? next : x)));
+                const setType = (type: ActionType) => setActions((prev) => prev.map((x) => (x.id === a.id ? defaultActionForm(type, a.id, network) : x)));
 
-              return (
-                <ActionCard key={a.id} index={idx} total={actions.length} value={a} onChange={setA} onTypeChange={setType} onMove={move} onRemove={remove}>
-                  <ActionFields value={a} onChange={setA} />
-                </ActionCard>
-              );
-            })}
+                return (
+                  <ActionCard key={a.id} index={idx} total={actions.length} value={a} onChange={setA} onTypeChange={setType} onMove={move} onRemove={remove}>
+                    <ActionFields value={a} onChange={setA} />
+                  </ActionCard>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className={"input-group w-[14rem]"}>
+          <p className={"input-label"}>New action</p>
+          <select className={"input-text"} value={newActionType} onChange={(e) => setNewActionType(e.target.value as ActionType)}>
+            {ACTION_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          <div className={"flex flex-wrap gap-2 items-end"}>
+            <button
+              className={"input-button compact flex-1"}
+              onClick={() => setActions((prev) => [...prev, defaultActionForm(newActionType, makeId(), network)])}
+            >
+              Add
+            </button>
+            <button className={"input-button compact flex-1"} onClick={() => setActions(() => [defaultActionForm("Transfer", makeId(), network)])}>
+              Reset
+            </button>
           </div>
         </div>
 
@@ -114,6 +117,12 @@ export const SendTx = ({ wallet, network }: IPropsWalletAction) => {
             {JSON.stringify(payloadPreview, null, 2)}
           </pre>
         </details>
+
+        <div className={"flex w-full"}>
+          <button className={"input-button w-full"} onClick={() => sendTx()}>
+            Send tx
+          </button>
+        </div>
 
         {previewError ? <p className={"text-left text-xs text-amber-400"}>Preview error: {previewError}</p> : null}
         {lastError ? <p className={"text-left text-xs text-red-400"}>{lastError}</p> : null}
