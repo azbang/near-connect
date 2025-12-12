@@ -1,5 +1,6 @@
 import type { Action } from "@near-js/transactions";
 import { ConnectorAction } from "./types";
+import { encodeBase58 } from "../helpers/base58";
 
 const deserializeArgs = (args: Uint8Array) => {
   try {
@@ -30,10 +31,7 @@ export const nearActionsToConnectorActions = (actions: (Action | ConnectorAction
         type: "DeployGlobalContract",
         params: {
           code: action.deployGlobalContract.code,
-          deployMode: {
-            AccountId: action.deployGlobalContract.deployMode.AccountId,
-            CodeHash: action.deployGlobalContract.deployMode.CodeHash,
-          },
+          deployMode: action.deployGlobalContract.deployMode.AccountId ? "AccountId" : "CodeHash",
         },
       };
     }
@@ -46,10 +44,9 @@ export const nearActionsToConnectorActions = (actions: (Action | ConnectorAction
       return {
         type: "UseGlobalContract",
         params: {
-          contractIdentifier: {
-            AccountId: action.useGlobalContract.contractIdentifier.AccountId,
-            CodeHash: action.useGlobalContract.contractIdentifier.CodeHash,
-          },
+          contractIdentifier: action.useGlobalContract.contractIdentifier.AccountId
+            ? { accountId: action.useGlobalContract.contractIdentifier.AccountId }
+            : { codeHash: encodeBase58(action.useGlobalContract.contractIdentifier.CodeHash!) },
         },
       };
     }

@@ -1,3 +1,8 @@
+# 0.8.0
+
+- Remove WalletConnect as optional dep
+- Change types for UseGlobalContractAction and DeployGlobalContractAction
+
 # 0.7.0
 
 - add UseGlobalContractAction, DeployGlobalContractAction

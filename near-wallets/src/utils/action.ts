@@ -1,4 +1,5 @@
 import { PublicKey } from "@near-js/crypto";
+import { baseDecode } from "@near-js/utils";
 import {
   AccessKey,
   AccessKeyPermission,
@@ -75,17 +76,12 @@ export interface DeleteAccountAction {
 
 export interface UseGlobalContractAction {
   type: "UseGlobalContract";
-  params: {
-    contractIdentifier?: {
-      AccountId?: string;
-      CodeHash?: Uint8Array;
-    };
-  };
+  params: { contractIdentifier: { accountId: string } | { codeHash: string } };
 }
 
 export interface DeployGlobalContractAction {
   type: "DeployGlobalContract";
-  params: { code: Uint8Array; deployMode?: { AccountId?: string | null; CodeHash?: Uint8Array | null } };
+  params: { code: Uint8Array; deployMode: "CodeHash" | "AccountId" };
 }
 
 export type ConnectorAction =
@@ -109,9 +105,8 @@ export const connectorActionsToNearActions = (actions: ConnectorAction[]): Actio
     }
 
     if (action.type === "DeployGlobalContract") {
-      const deployMode = action.params.deployMode?.AccountId
-        ? new GlobalContractDeployMode({ AccountId: action.params.deployMode?.AccountId as any })
-        : new GlobalContractDeployMode({ CodeHash: action.params.deployMode?.CodeHash as any });
+      const deployMode =
+        action.params.deployMode === "AccountId" ? new GlobalContractDeployMode({ AccountId: null }) : new GlobalContractDeployMode({ CodeHash: null });
       return actionCreators.deployGlobalContract(action.params.code, deployMode);
     }
 
@@ -120,9 +115,10 @@ export const connectorActionsToNearActions = (actions: ConnectorAction[]): Actio
     }
 
     if (action.type === "UseGlobalContract") {
-      const contractIdentifier = action.params.contractIdentifier?.AccountId
-        ? new GlobalContractIdentifier({ AccountId: action.params.contractIdentifier?.AccountId })
-        : new GlobalContractIdentifier({ CodeHash: action.params.contractIdentifier?.CodeHash as any });
+      const contractIdentifier =
+        "accountId" in action.params.contractIdentifier
+          ? new GlobalContractIdentifier({ AccountId: action.params.contractIdentifier.accountId })
+          : new GlobalContractIdentifier({ CodeHash: baseDecode(action.params.contractIdentifier.codeHash) });
       return actionCreators.useGlobalContract(contractIdentifier);
     }
 

@@ -60,16 +60,18 @@ export interface DeleteAccountAction {
 export interface UseGlobalContractAction {
   type: "UseGlobalContract";
   params: {
-    contractIdentifier?: {
-      AccountId?: string;
-      CodeHash?: Uint8Array;
-    };
+    contractIdentifier:
+      | { accountId: string }
+      | {
+          /** Base58 encoded code hash */
+          codeHash: string;
+        };
   };
 }
 
 export interface DeployGlobalContractAction {
   type: "DeployGlobalContract";
-  params: { code: Uint8Array; deployMode?: { AccountId?: string | null; CodeHash?: Uint8Array | null } };
+  params: { code: Uint8Array; deployMode: "CodeHash" | "AccountId" };
 }
 
 export type ConnectorAction =

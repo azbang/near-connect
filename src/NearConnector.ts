@@ -1,3 +1,5 @@
+import type { default as WalletConnectSignClient } from "@walletconnect/sign-client";
+
 import { EventEmitter } from "./helpers/events";
 import { NearWalletsPopup } from "./popups/NearWalletsPopup";
 import { LocalStorage, DataStorage } from "./helpers/storage";
@@ -17,7 +19,7 @@ interface NearConnectorOptions {
   network?: Network;
 
   manifest?: string | { wallets: WalletManifest[]; version: string };
-  walletConnect?: { projectId: string; metadata: any } | import("@walletconnect/sign-client").default;
+  walletConnect?: WalletConnectSignClient;
 
   events?: EventEmitter<EventMap>;
   storage?: DataStorage;
@@ -50,8 +52,8 @@ export class NearConnector {
   network: Network = "mainnet";
 
   providers: { mainnet?: string[]; testnet?: string[] } = { mainnet: [], testnet: [] };
-  walletConnect?: { projectId: string; metadata: any } | import("@walletconnect/sign-client").default;
   signInData?: { contractId?: string; methodNames?: Array<string> };
+  walletConnect?: WalletConnectSignClient;
 
   excludedWallets: string[] = [];
   autoConnect?: boolean;
@@ -120,29 +122,6 @@ export class NearConnector {
         debugWallets.forEach((wallet) => this.registerDebugWallet(wallet));
       });
     });
-  }
-
-  _client: import("@walletconnect/sign-client").default | null = null;
-  async getWalletConnect() {
-    if (!this.walletConnect) throw new Error("WalletConnect is not configured");
-    if (!("projectId" in this.walletConnect)) return this.walletConnect;
-
-    const WalletConnect = await import("@walletconnect/sign-client");
-    if (this._client) return this._client;
-
-    this._client = await WalletConnect.default.init({
-      projectId: this.walletConnect?.projectId,
-      metadata: this.walletConnect?.metadata,
-      relayUrl: "wss://relay.walletconnect.com",
-    });
-
-    return this._client;
-  }
-
-  get walletConnectProjectId() {
-    if (!this.walletConnect) throw new Error("WalletConnect is not configured");
-    if (!("projectId" in this.walletConnect)) return this.walletConnect.core.projectId;
-    return this.walletConnect.projectId;
   }
 
   get availableWallets() {

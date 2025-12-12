@@ -1,6 +1,6 @@
 {
   "name": "@hot-labs/near-connect",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "type": "commonjs",
   "main": "./build/index.js",
   "types": "./build/index.d.ts",
@@ -21,9 +21,6 @@
     "build:wallets": "cd near-wallets && yarn build:wallets",
     "build": "rm -rf build && yarn tsc",
     "cdn": "vite build"
-  },
-  "optionalDependencies": {
-    "@walletconnect/sign-client": "^2.21.8"
   },
   "devDependencies": {
     "@near-js/transactions": "^2.5.1",
