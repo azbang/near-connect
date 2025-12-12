@@ -339,10 +339,10 @@
   resolved "https://registry.yarnpkg.com/@eslint/js/-/js-8.57.1.tgz#de633db3ec2ef6a3c89e2f19038063e8a122e2c2"
   integrity sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==
 
-"@hot-labs/near-connect@^0.8.0":
-  version "0.8.0"
-  resolved "https://registry.yarnpkg.com/@hot-labs/near-connect/-/near-connect-0.8.0.tgz#0ec2a39af142983ad0548c5f4e14816234789372"
-  integrity sha512-Mtv9cHXKllZEH1TOXV0+oiepaIGa7a1uRL6HK2InwlWHOwU+1Jftv0KnEPeY+hdtNscfVBJBG/J13E8W6Hdcsg==
+"@hot-labs/near-connect@^0.8.1":
+  version "0.8.1"
+  resolved "https://registry.yarnpkg.com/@hot-labs/near-connect/-/near-connect-0.8.1.tgz#f8a4f3e0f85c22fee84c3c75c57723d2cbc672fa"
+  integrity sha512-cJRZFQTrY4Nwnmv/zM10HfzcywM4NX6pZOR9Vkdx/nuoHWc7VA/hpN0RR9j/5EYhXdF09k16qkY/vc1Zk2YuMg==
 
 "@humanwhocodes/config-array@^0.13.0":
   version "0.13.0"
