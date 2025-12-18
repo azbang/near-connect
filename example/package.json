@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "cd ../near-wallets && EXAMPLE=true yarn build:wallets && cd ../example && vite",
-    "build": "cd ../near-wallets && EXAMPLE=true yarn build:wallets && cd ../example && vite build && echo '*' > dist/CORS",
+    "start": "cd ../near-wallets && EXAMPLE=true yarn build:wallets && cd ../example && yarn copy-manifest && vite",
+    "copy-manifest": "node scripts/copy-manifest.js",
+    "build": "cd ../near-wallets && EXAMPLE=true yarn build:wallets && cd ../example && yarn copy-manifest && vite build && echo '*' > dist/CORS",
     "deploy": "surge ./dist"
   },
   "dependencies": {
@@ -25,6 +26,7 @@
     "@typescript-eslint/eslint-plugin": "^7.15.0",
     "@typescript-eslint/parser": "^7.15.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "copy-file": "^11.1.0",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.7",
