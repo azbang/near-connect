@@ -252,7 +252,13 @@ ${r} *::-webkit-scrollbar {
   display: none;
 }
 
-${r} p, h1, h2, h3, h4, h5, h6 {
+${r} p,
+${r} h1,
+${r} h2,
+${r} h3,
+${r} h4,
+${r} h5,
+${r} h6 {
   margin: 0;
 }
 
