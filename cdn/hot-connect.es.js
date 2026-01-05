@@ -550,7 +550,7 @@ class b {
     }, 200));
   }
 }
-class P extends b {
+class $ extends b {
   constructor(e) {
     super(e), this.delegate = e;
   }
@@ -573,7 +573,7 @@ class P extends b {
     </div>`;
   }
 }
-async function $(r) {
+async function P(r) {
   const e = await r.executor.getAllStorage(), t = r.executor.connector.providers, n = r.executor.manifest, o = r.id, s = r.code.replaceAll(".localStorage", ".sandboxedLocalStorage").replaceAll("window.top", "window.selector").replaceAll("window.open", "window.selector.open");
   return (
     /* html */
@@ -895,9 +895,9 @@ class M {
       s.data.origin === this.origin && (s.data.method === "wallet-ready" && this.readyPromiseResolve(), n(this, s));
     }, window.addEventListener("message", this.handler);
     const o = [];
-    this.executor.checkPermissions("usb") && o.push("usb *;"), this.executor.checkPermissions("hid") && o.push("hid *;"), this.executor.checkPermissions("clipboardRead") && o.push("clipboard-read;"), this.executor.checkPermissions("clipboardWrite") && o.push("clipboard-write;"), this.iframe.allow = o.join(" "), this.iframe.setAttribute("sandbox", "allow-scripts"), $({ id: this.origin, executor: this.executor, code: t }).then((s) => {
+    this.executor.checkPermissions("usb") && o.push("usb *;"), this.executor.checkPermissions("hid") && o.push("hid *;"), this.executor.checkPermissions("clipboardRead") && o.push("clipboard-read;"), this.executor.checkPermissions("clipboardWrite") && o.push("clipboard-write;"), this.iframe.allow = o.join(" "), this.iframe.setAttribute("sandbox", "allow-scripts"), P({ id: this.origin, executor: this.executor, code: t }).then((s) => {
       this.executor.connector.logger?.log("Iframe code injected"), this.iframe.srcdoc = s;
-    }), this.popup = new P({
+    }), this.popup = new $({
       iframe: this.iframe,
       onApprove: () => {
       },

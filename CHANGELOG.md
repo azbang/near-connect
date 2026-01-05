@@ -1,3 +1,7 @@
+# 0.8.2
+
+- fix css styles
+
 # 0.8.0
 
 - Remove WalletConnect as optional dep
