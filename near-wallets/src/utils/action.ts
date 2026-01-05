@@ -1,62 +1,165 @@
-import { actionCreators } from "@near-js/transactions";
 import { PublicKey } from "@near-js/crypto";
+import { baseDecode } from "@near-js/utils";
+import {
+  AccessKey,
+  AccessKeyPermission,
+  Action,
+  actionCreators,
+  FullAccessPermission,
+  FunctionCallPermission,
+  GlobalContractDeployMode,
+  GlobalContractIdentifier,
+} from "@near-js/transactions";
 
-const getAccessKey = (permission: any) => {
-  if (permission === "FullAccess") {
-    return actionCreators.fullAccessKey();
-  }
+export interface CreateAccountAction {
+  type: "CreateAccount";
+}
 
-  const { receiverId, methodNames = [] } = permission;
-  const allowance = permission.allowance ? BigInt(permission.allowance) : undefined;
+export interface DeployContractAction {
+  type: "DeployContract";
+  params: { code: Uint8Array };
+}
 
-  return actionCreators.functionCallAccessKey(receiverId, methodNames, allowance);
-};
+export interface FunctionCallAction {
+  type: "FunctionCall";
+  params: {
+    methodName: string;
+    args: object;
+    gas: string;
+    deposit: string;
+  };
+}
 
-export const createAction = (action: any) => {
-  switch (action.type) {
-    case "CreateAccount":
+export interface TransferAction {
+  type: "Transfer";
+  params: { deposit: string };
+}
+
+export interface StakeAction {
+  type: "Stake";
+  params: {
+    stake: string;
+    publicKey: string;
+  };
+}
+
+export type AddKeyPermission =
+  | "FullAccess"
+  | {
+      receiverId: string;
+      allowance?: string;
+      methodNames?: Array<string>;
+    };
+
+export interface AddKeyAction {
+  type: "AddKey";
+  params: {
+    publicKey: string;
+    accessKey: {
+      nonce?: number;
+      permission: AddKeyPermission;
+    };
+  };
+}
+
+export interface DeleteKeyAction {
+  type: "DeleteKey";
+  params: { publicKey: string };
+}
+export interface DeleteAccountActionParams {
+  beneficiaryId: string;
+}
+export interface DeleteAccountAction {
+  type: "DeleteAccount";
+  params: DeleteAccountActionParams;
+}
+
+export interface UseGlobalContractAction {
+  type: "UseGlobalContract";
+  params: { contractIdentifier: { accountId: string } | { codeHash: string } };
+}
+
+export interface DeployGlobalContractAction {
+  type: "DeployGlobalContract";
+  params: { code: Uint8Array; deployMode: "CodeHash" | "AccountId" };
+}
+
+export type ConnectorAction =
+  | CreateAccountAction
+  | DeployContractAction
+  | FunctionCallAction
+  | TransferAction
+  | StakeAction
+  | AddKeyAction
+  | DeleteKeyAction
+  | DeleteAccountAction
+  | UseGlobalContractAction
+  | DeployGlobalContractAction;
+
+export const connectorActionsToNearActions = (actions: ConnectorAction[]): Action[] => {
+  return actions.map((action) => {
+    if (!("type" in action)) return action as Action;
+
+    if (action.type === "FunctionCall") {
+      return actionCreators.functionCall(action.params.methodName, action.params.args as any, BigInt(action.params.gas), BigInt(action.params.deposit));
+    }
+
+    if (action.type === "DeployGlobalContract") {
+      const deployMode =
+        action.params.deployMode === "AccountId" ? new GlobalContractDeployMode({ AccountId: null }) : new GlobalContractDeployMode({ CodeHash: null });
+      return actionCreators.deployGlobalContract(action.params.code, deployMode);
+    }
+
+    if (action.type === "CreateAccount") {
       return actionCreators.createAccount();
-    case "DeployContract": {
-      const { code } = action.params;
-
-      return actionCreators.deployContract(code);
-    }
-    case "FunctionCall": {
-      const { methodName, args, gas, deposit } = action.params;
-      return actionCreators.functionCall(methodName, args, BigInt(gas), BigInt(deposit));
     }
 
-    case "Transfer": {
-      const { deposit } = action.params;
-
-      return actionCreators.transfer(BigInt(deposit));
+    if (action.type === "UseGlobalContract") {
+      const contractIdentifier =
+        "accountId" in action.params.contractIdentifier
+          ? new GlobalContractIdentifier({ AccountId: action.params.contractIdentifier.accountId })
+          : new GlobalContractIdentifier({ CodeHash: baseDecode(action.params.contractIdentifier.codeHash) });
+      return actionCreators.useGlobalContract(contractIdentifier);
     }
-    case "Stake": {
-      const { stake, publicKey } = action.params;
 
-      return actionCreators.stake(BigInt(stake), PublicKey.from(publicKey));
+    if (action.type === "DeployContract") {
+      return actionCreators.deployContract(action.params.code);
     }
-    case "AddKey": {
-      const { publicKey, accessKey } = action.params;
 
+    if (action.type === "DeleteAccount") {
+      return actionCreators.deleteAccount(action.params.beneficiaryId);
+    }
+
+    if (action.type === "DeleteKey") {
+      return actionCreators.deleteKey(PublicKey.from(action.params.publicKey));
+    }
+
+    if (action.type === "Transfer") {
+      return actionCreators.transfer(BigInt(action.params.deposit));
+    }
+
+    if (action.type === "Stake") {
+      return actionCreators.stake(BigInt(action.params.stake), PublicKey.from(action.params.publicKey));
+    }
+
+    if (action.type === "AddKey") {
       return actionCreators.addKey(
-        PublicKey.from(publicKey),
-        // TODO: Use accessKey.nonce? near-api-js seems to think 0 is fine?
-        getAccessKey(accessKey.permission)
+        PublicKey.from(action.params.publicKey),
+        new AccessKey({
+          nonce: BigInt(action.params.accessKey.nonce ?? 0),
+          permission: new AccessKeyPermission(
+            action.params.accessKey.permission === "FullAccess"
+              ? new FullAccessPermission()
+              : new FunctionCallPermission({
+                  receiverId: action.params.accessKey.permission.receiverId,
+                  allowance: BigInt(action.params.accessKey.permission.allowance ?? 0),
+                  methodNames: action.params.accessKey.permission.methodNames ?? [],
+                })
+          ),
+        })
       );
     }
 
-    case "DeleteKey": {
-      const { publicKey } = action.params;
-      return actionCreators.deleteKey(PublicKey.from(publicKey));
-    }
-
-    case "DeleteAccount": {
-      const { beneficiaryId } = action.params;
-      return actionCreators.deleteAccount(beneficiaryId);
-    }
-
-    default:
-      throw new Error("Invalid action type");
-  }
+    throw new Error("Invalid action");
+  });
 };

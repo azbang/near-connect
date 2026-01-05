@@ -6,6 +6,9 @@ import config from "@peersyst/near-mobile-signer/dist/src/common/config/config";
 import QRCodeStyling from "qr-code-styling";
 import { KeyPair } from "@near-js/crypto";
 
+import { nearMobileFrame, nearMobileFrameHead } from "./view";
+import { ConnectorAction } from "../utils/action";
+
 const isMobile = function () {
   let check = false;
   (function (a) {
@@ -22,9 +25,7 @@ const isMobile = function () {
   return check;
 };
 
-import { nearMobileFrame, nearMobileFrameHead } from "./view";
 document.head.innerHTML = nearMobileFrameHead;
-
 const connector = document.createElement("div");
 connector.innerHTML = nearMobileFrame;
 document.body.appendChild(connector);
@@ -195,9 +196,9 @@ export const initNearMobileWallet = async () => {
       return getAccounts(network);
     },
 
-    async signAndSendTransaction(data: { network: Network; actions: any[] }) {
+    async signAndSendTransaction(data: { network: Network; receiverId: string; actions: ConnectorAction[] }) {
       window.selector.ui.showIframe();
-      return await wallet[data.network].signAndSendTransaction(data);
+      return await wallet[data.network].signAndSendTransaction({ actions: data.actions as any, receiverId: data.receiverId });
     },
 
     async verifyOwner() {
@@ -215,9 +216,9 @@ export const initNearMobileWallet = async () => {
       };
     },
 
-    async signAndSendTransactions(data: { network: Network; transactions: any[] }) {
+    async signAndSendTransactions(data: { network: Network; transactions: { receiverId: string; actions: ConnectorAction[] }[] }) {
       window.selector.ui.showIframe();
-      return await wallet[data.network].signAndSendTransactions(data);
+      return await wallet[data.network].signAndSendTransactions({ transactions: data.transactions as any });
     },
   };
 };

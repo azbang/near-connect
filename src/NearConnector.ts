@@ -3,17 +3,14 @@ import { NearWalletsPopup } from "./popups/NearWalletsPopup";
 import { LocalStorage, DataStorage } from "./helpers/storage";
 import IndexedDB from "./helpers/indexdb";
 
-import { EventNearWalletInjected, WalletManifest, Network, WalletFeatures, Logger, NearWalletBase, Account } from "./types/wallet";
+import { EventNearWalletInjected, WalletManifest, Network, WalletFeatures, Logger, NearWalletBase, AbstractWalletConnect } from "./types";
 import { ParentFrameWallet } from "./ParentFrameWallet";
 import { InjectedWallet } from "./InjectedWallet";
 import { SandboxWallet } from "./SandboxedWallet";
-import { EventMap } from "./types/wallet-events";
-import { Action } from "./types/transactions";
+import { EventMap } from "./types";
 import { WalletPlugin } from "./types/plugin";
 
 interface NearConnectorOptions {
-  isBannedNearAddress?: (address: string) => Promise<boolean>;
-
   providers?: { mainnet?: string[]; testnet?: string[] };
   features?: Partial<WalletFeatures>;
   excludedWallets?: string[];
@@ -21,7 +18,7 @@ interface NearConnectorOptions {
   network?: Network;
 
   manifest?: string | { wallets: WalletManifest[]; version: string };
-  walletConnect?: { projectId: string; metadata: any };
+  walletConnect?: Promise<AbstractWalletConnect> | AbstractWalletConnect;
 
   events?: EventEmitter<EventMap>;
   storage?: DataStorage;
@@ -54,13 +51,11 @@ export class NearConnector {
   network: Network = "mainnet";
 
   providers: { mainnet?: string[]; testnet?: string[] } = { mainnet: [], testnet: [] };
-  walletConnect?: { projectId: string; metadata: any };
   signInData?: { contractId?: string; methodNames?: Array<string> };
+  walletConnect?: Promise<AbstractWalletConnect> | AbstractWalletConnect;
 
   excludedWallets: string[] = [];
   autoConnect?: boolean;
-
-  isBannedNearAddress?: (address: string) => Promise<boolean>;
 
   readonly whenManifestLoaded: Promise<void>;
 
@@ -72,7 +67,6 @@ export class NearConnector {
 
     this.network = options?.network ?? "mainnet";
     this.walletConnect = options?.walletConnect;
-    this.isBannedNearAddress = options?.isBannedNearAddress;
 
     this.autoConnect = options?.autoConnect ?? true;
     this.providers = options?.providers ?? { mainnet: [], testnet: [] };
@@ -129,20 +123,6 @@ export class NearConnector {
     });
   }
 
-  _client: import("@walletconnect/sign-client").default | null = null;
-  async getWalletConnect() {
-    const WalletConnect = await import("@walletconnect/sign-client");
-    if (this._client) return this._client;
-
-    this._client = await WalletConnect.default.init({
-      projectId: this.walletConnect?.projectId,
-      metadata: this.walletConnect?.metadata,
-      relayUrl: "wss://relay.walletconnect.com",
-    });
-
-    return this._client;
-  }
-
   get availableWallets() {
     const wallets = this.wallets.filter((wallet) => {
       return Object.entries(this.features).every(([key, value]) => {
@@ -172,33 +152,6 @@ export class NearConnector {
     }
 
     throw new Error("Failed to load manifest");
-  }
-
-  async disconnectIfBanned(wallet: NearWalletBase, accounts: Account[]) {
-    if (!this.isBannedNearAddress) return;
-    for (const account of accounts) {
-      const isBanned = await this.isBannedNearAddress(account.accountId);
-      if (isBanned) {
-        await this.disconnect(wallet);
-        throw new Error("Banned near address");
-      }
-    }
-  }
-
-  async validateBannedNearAddressInTx(tx: { receiverId: string; actions: Action[] }) {
-    if (!this.isBannedNearAddress) return;
-
-    const isBanned = await this.isBannedNearAddress(tx.receiverId);
-    if (isBanned) throw new Error("Banned receiver address");
-
-    for (const action of tx.actions) {
-      if (action.type === "FunctionCall") {
-        const receiverId = action.params.args["receiver_id"];
-        if (typeof receiverId !== "string") continue;
-        const isBanned = await this.isBannedNearAddress(receiverId);
-        if (isBanned) throw new Error("Banned receiver address");
-      }
-    }
   }
 
   async switchNetwork(network: "mainnet" | "testnet", signInData?: { contractId?: string; methodNames?: Array<string> }) {
@@ -278,9 +231,6 @@ export class NearConnector {
       });
 
       if (!accounts?.length) throw new Error("Failed to sign in");
-
-      await this.disconnectIfBanned(wallet, accounts);
-
       this.logger?.log(`Signed in to wallet`, id, accounts);
       this.events.emit("wallet:signIn", { wallet, accounts, success: true });
       return wallet;
@@ -306,8 +256,6 @@ export class NearConnector {
 
     const accounts = await wallet.getAccounts();
     if (!accounts?.length) throw new Error("No accounts found");
-
-    await this.disconnectIfBanned(wallet, accounts);
 
     return { wallet, accounts };
   }

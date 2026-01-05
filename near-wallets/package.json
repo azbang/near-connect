@@ -1,6 +1,6 @@
 {
   "name": "near-wallets",
-  "version": "0.6.7",
+  "version": "0.7.0",
   "type": "commonjs",
   "license": "MIT",
   "author": "HOT Labs",
@@ -21,6 +21,8 @@
     "build:mnw": "PACKAGE=mnw vite build"
   },
   "devDependencies": {
+    "@near-js/crypto": "^2.5.1",
+    "@near-js/transactions": "^2.5.1",
     "@here-wallet/core": "^3.4.0",
     "@meteorwallet/sdk": "1.0.9",
     "@noble/hashes": "^1.4.0",

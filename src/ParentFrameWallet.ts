@@ -1,15 +1,16 @@
+import { nearActionsToConnectorActions } from "./actions";
 import { uuid4 } from "./helpers/uuid";
 import { NearConnector } from "./NearConnector";
 import {
   Account,
   FinalExecutionOutcome,
   Network,
-  SignAndSendTransactionParams,
   SignAndSendTransactionsParams,
+  SignAndSendTransactionParams,
   SignedMessage,
   SignMessageParams,
   WalletManifest,
-} from "./types/wallet";
+} from "./types";
 
 export class ParentFrameWallet {
   constructor(readonly connector: NearConnector, readonly manifest: WalletManifest) {}
@@ -53,14 +54,18 @@ export class ParentFrameWallet {
   }
 
   async signAndSendTransaction(params: SignAndSendTransactionParams): Promise<FinalExecutionOutcome> {
-    await this.connector.validateBannedNearAddressInTx(params);
-    const args = { ...params, network: params.network || this.connector.network };
+    const connectorActions = nearActionsToConnectorActions(params.actions);
+    const args = { ...params, actions: connectorActions, network: params.network || this.connector.network };
     return this.callParentFrame("near:signAndSendTransaction", args) as Promise<FinalExecutionOutcome>;
   }
 
   async signAndSendTransactions(params: SignAndSendTransactionsParams): Promise<Array<FinalExecutionOutcome>> {
-    for (const tx of params.transactions) await this.connector.validateBannedNearAddressInTx(tx);
     const args = { ...params, network: params.network || this.connector.network };
+    args.transactions = args.transactions.map((transaction) => ({
+      actions: nearActionsToConnectorActions(transaction.actions),
+      receiverId: transaction.receiverId,
+    }));
+
     return this.callParentFrame("near:signAndSendTransactions", args) as Promise<Array<FinalExecutionOutcome>>;
   }
 

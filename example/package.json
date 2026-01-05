@@ -4,26 +4,29 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "cd ../near-wallets && EXAMPLE=true yarn build:wallets && cd ../example && vite",
-    "build": "cd ../near-wallets && EXAMPLE=true yarn build:wallets && cd ../example && vite build && echo '*' > dist/CORS",
+    "start": "cd ../near-wallets && EXAMPLE=true yarn build:wallets && cd ../example && yarn copy-manifest && vite",
+    "copy-manifest": "node scripts/copy-manifest.js",
+    "build": "cd ../near-wallets && EXAMPLE=true yarn build:wallets && cd ../example && yarn copy-manifest && vite build && echo '*' > dist/CORS",
     "deploy": "surge ./dist"
   },
   "dependencies": {
-    "@hot-labs/near-connect": "^0.6.10",
+    "@hot-labs/near-connect": "^0.8.1",
     "@near-js/utils": "^2.2.4",
-    "@walletconnect/sign-client": "^2.22.4",
+    "@walletconnect/sign-client": "^2.23.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "usehooks-ts": "^3.1.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.11",
+    "@types/node": "^25.0.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/uuid4": "^2.0.3",
     "@typescript-eslint/eslint-plugin": "^7.15.0",
     "@typescript-eslint/parser": "^7.15.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "copy-file": "^11.1.0",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.7",

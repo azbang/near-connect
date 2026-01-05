@@ -27,25 +27,26 @@ Unlike near-wallet-selector, this library provides a secure execution environmen
 ```ts
 import { NearConnector } from "@hot-labs/near-connect";
 
-const connector = new NearConnector({
-  network: "mainnet",
-
-  // optional: use @aurora-is-near/is-banned-near-address for validate scam accounts
-  isBannedNearAddress: async (address) => false,
-
-  // Optional for wallet-connect wallets
-  walletConnect: {
-    projectId: "",
-    metadata: {},
-  },
-});
-
+const connector = new NearConnector();
 connector.on("wallet:signOut", async () => {});
 connector.on("wallet:signIn", async (t) => {
   const wallet = await connector.wallet(); // api like near-wallet-selector
   const address = t.accounts[0].accountId;
   wallet.signMessage(); // all methods like near-wallet-selector
 });
+```
+
+## WalletConnect support (optional)
+
+Some wallets only work when you pass WalletConnect sign client to NearConnector, without it these wallets do not appear as an option to connect
+
+```ts
+// Or use Reown appKit
+import SignClient from "@walletconnect/sign-client";
+const walletConnect = SignClient.init({ projectId: "...", metadata: {} });
+
+import { NearConnector } from "@hot-labs/near-connect";
+const connector = new NearConnector({ walletConnect });
 ```
 
 ## SignIn with limited key
@@ -55,6 +56,18 @@ new NearConnector({ signIn: { contractId: "game.near", methods: ["action"] } });
 ```
 
 Some wallets allow adding a limited-access key to a contract as soon as the user connects their wallet. This enables the app to sign non-payable transactions without requiring wallet approval each time. However, this approach requires the user to submit an on-chain transaction during the initial connection, which may negatively affect the user experience. A better practice is to add the limited-access key after the user has already begun actively interacting with your application.
+
+## SignAndSendTransaction format actions
+
+This library supports two types of actions when using methods like `signAndSendTransaction`:
+
+1. **near-wallet-selector Action format**  
+   For backward compatibility, you can use actions in the same format as [near-wallet-selector], with all action types defined in [`./src/actions/types`](./src/actions/types.ts) (such as FunctionCall, Transfer, AddKey, etc.).
+
+2. **near-api-js actionsCreator format**  
+   You can also use actions created via the `actionsCreator` functions from `near-api-js` (for example, `transactions.functionCall(...)` and other actions from the package).
+
+You can use the old action format or the near-api-js format (recommended).
 
 ## Wallet integration
 
@@ -148,7 +161,7 @@ const selector = new NearConnector({
 When you develop a connector for your wallet, you can immediately test your code on real applications that use HOT Connect. Super easy!
 Once you have written your executor script and tested it - you only need to send a PR to update repository/manifest.json. After review, your wallet will automatically become available to all dApps that use the HOT Connector.
 
-![Adobe Express - Screen Recording 2025-09-16 at 00 52 31 (1)](https://github.com/user-attachments/assets/80855260-82f3-4c35-ae27-034e263c7b71)
+![Preview](https://github.com/user-attachments/assets/80855260-82f3-4c35-ae27-034e263c7b71)
 
 ## Injected wallets
 

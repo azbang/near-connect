@@ -4,6 +4,9 @@ export { SandboxWallet } from "./SandboxedWallet";
 export { InjectedWallet } from "./InjectedWallet";
 export { NearConnector } from "./NearConnector";
 
+export { nearActionsToConnectorActions } from "./actions";
+export type { ConnectorAction } from "./actions/types";
+
 export type {
   NearWalletBase,
   WalletManifest,
@@ -12,10 +15,4 @@ export type {
   SignedMessage,
   SignAndSendTransactionParams,
   SignAndSendTransactionsParams,
-} from "./types/wallet";
-
-export type {
-  WalletPlugin,
-} from "./types/plugin";
-
-export * as tx from "./types/transactions";
+} from "./types";

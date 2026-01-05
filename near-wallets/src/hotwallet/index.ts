@@ -3,6 +3,7 @@ import { QRCode } from "@here-wallet/core/qrcode-strategy";
 import crypto from "crypto";
 
 import { head, bodyMobile, bodyDesktop } from "./view";
+import { ConnectorAction } from "../utils/action";
 
 const isMobile = () => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -166,15 +167,15 @@ class NearWallet {
     return res;
   };
 
-  signAndSendTransaction = async (payload: any) => {
+  signAndSendTransaction = async (payload: { network: string; receiverId: string; actions: ConnectorAction[] }) => {
     if (payload.network === "testnet") throw "HOT Wallet not supported on testnet";
     const { transactions } = await HOT.shared.request("near:signAndSendTransactions", { transactions: [payload] });
     return transactions[0];
   };
 
-  signAndSendTransactions = async (payload: any) => {
+  signAndSendTransactions = async (payload: { network: string; transactions: { receiverId: string; actions: ConnectorAction[] }[] }) => {
     if (payload.network === "testnet") throw "HOT Wallet not supported on testnet";
-    const { transactions } = await HOT.shared.request("near:signAndSendTransactions", payload);
+    const { transactions } = await HOT.shared.request("near:signAndSendTransactions", { transactions: payload.transactions });
     return transactions;
   };
 }

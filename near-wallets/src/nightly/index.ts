@@ -1,9 +1,8 @@
-import { signTransaction } from "@near-js/transactions";
 import { PublicKey } from "@near-js/crypto";
 import { baseEncode } from "@near-js/utils";
 import { Signer } from "@near-js/signers";
 
-import { signTransactions } from "../utils/wallet";
+import { ConnectorAction } from "../utils/action";
 import { signAndSendTransactionsHandler } from "./helper";
 
 const networks: Record<string, any> = {
@@ -105,7 +104,7 @@ const Nightly = async () => {
       });
     },
 
-    async signAndSendTransaction({ receiverId, actions, network }: { receiverId: string; actions: any; network: string }) {
+    async signAndSendTransaction({ receiverId, actions, network }: { receiverId: string; actions: ConnectorAction[]; network: string }) {
       await checkExist();
       const accounts = await getAccounts();
       if (!accounts.length) throw new Error("Wallet not signed in");
@@ -114,7 +113,7 @@ const Nightly = async () => {
       return (await signAndSendTransactionsHandler([{ signerId, receiverId, actions }], signer, networks[network]))[0];
     },
 
-    async signAndSendTransactions({ transactions, network }: { transactions: any; network: string }) {
+    async signAndSendTransactions({ transactions, network }: { transactions: { receiverId: string; actions: ConnectorAction[] }[]; network: string }) {
       await checkExist();
       const accounts = await getAccounts();
       if (!accounts.length) throw new Error("Wallet not signed in");
@@ -122,21 +121,6 @@ const Nightly = async () => {
       const signerId = accounts[0].accountId;
       const list = transactions.map((t: any) => ({ ...t, signerId }));
       return await signAndSendTransactionsHandler(list, signer, networks[network]);
-    },
-
-    async createSignedTransaction({ receiverId, actions, network }: { receiverId: string; actions: any; network: string }) {
-      await checkExist();
-      const accounts = await getAccounts();
-      if (!accounts.length) throw new Error("Wallet not signed in");
-
-      const signerId = accounts[0].accountId;
-      const [signedTx] = await signTransactions([{ signerId, receiverId, actions }], signer, networks[network]);
-      return signedTx;
-    },
-
-    async signTransaction({ transaction, network }: any) {
-      await checkExist();
-      return await signTransaction(transaction, signer, transaction.signerId, networks[network].networkId);
     },
 
     async getPublicKey() {

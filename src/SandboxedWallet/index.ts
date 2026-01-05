@@ -7,8 +7,9 @@ import {
   SignedMessage,
   SignMessageParams,
   WalletManifest,
-} from "../types/wallet";
+} from "../types";
 import { NearConnector } from "../NearConnector";
+import { nearActionsToConnectorActions } from "../actions";
 import SandboxExecutor from "./executor";
 
 export class SandboxWallet {
@@ -38,14 +39,18 @@ export class SandboxWallet {
   }
 
   async signAndSendTransaction(params: SignAndSendTransactionParams): Promise<FinalExecutionOutcome> {
-    await this.connector.validateBannedNearAddressInTx(params);
-    const args = { ...params, network: params.network || this.connector.network };
+    const actions = nearActionsToConnectorActions(params.actions);
+    const args = { ...params, actions, network: params.network || this.connector.network };
     return this.executor.call("wallet:signAndSendTransaction", args);
   }
 
   async signAndSendTransactions(params: SignAndSendTransactionsParams): Promise<Array<FinalExecutionOutcome>> {
-    const args = { ...params, network: params.network || this.connector.network };
-    for (const tx of params.transactions) await this.connector.validateBannedNearAddressInTx(tx);
+    const transactions = params.transactions.map((transaction) => ({
+      actions: nearActionsToConnectorActions(transaction.actions),
+      receiverId: transaction.receiverId,
+    }));
+
+    const args = { ...params, transactions, network: params.network || this.connector.network };
     return this.executor.call("wallet:signAndSendTransactions", args);
   }
 

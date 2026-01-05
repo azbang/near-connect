@@ -1,3 +1,17 @@
+# 0.8.2
+
+- fix css styles
+
+# 0.8.0
+
+- Remove WalletConnect as optional dep
+- Change types for UseGlobalContractAction and DeployGlobalContractAction
+
+# 0.7.0
+
+- add UseGlobalContractAction, DeployGlobalContractAction
+- support Actions from @near-js
+
 # 0.6.11
 
 - Add `signIn` to setup limited access key (deprecated flow)

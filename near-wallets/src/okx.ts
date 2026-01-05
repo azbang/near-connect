@@ -1,9 +1,8 @@
 import { SignedTransaction } from "@near-js/transactions";
-import { isCurrentBrowserSupported } from "./utils/detectBrowser";
-import { NearRpc } from "./utils/rpc";
 
-type InternalAction = any;
-type FunctionCallAction = any;
+import { isCurrentBrowserSupported } from "./utils/detectBrowser";
+import { connectorActionsToNearActions, ConnectorAction, FunctionCallAction } from "./utils/action";
+import { NearRpc } from "./utils/rpc";
 
 const checkExist = async () => {
   try {
@@ -29,20 +28,6 @@ const OKXWallet = async () => {
   const signOut = async () => {
     if (!(await okx("isSignedIn"))) return;
     await okx("signOut");
-  };
-
-  const transformActions = (actions: Array<InternalAction>) => {
-    return actions.map((action) => {
-      return action.type === "FunctionCall" ? action.params : ({} as FunctionCallAction["params"]);
-    });
-  };
-
-  const transformTransactions = (transactions: Array<{ receiverId: string; actions: Array<InternalAction> }[]>) => {
-    return transactions.map((transaction) => {
-      return transaction.map(({ receiverId, actions }) => {
-        return { receiverId, actions: transformActions(actions) };
-      });
-    });
   };
 
   const getAccounts = async () => {
@@ -87,13 +72,19 @@ const OKXWallet = async () => {
       }
     },
 
-    async signAndSendTransaction({ receiverId, actions }: { receiverId: string; actions: Array<InternalAction> }) {
+    async signAndSendTransaction({ receiverId, actions }: { receiverId: string; actions: Array<ConnectorAction> }) {
       await checkExist();
       if (!(await okx("isSignedIn"))) throw new Error("Wallet not signed in");
       if (!receiverId) throw new Error("Receiver ID is required");
 
       try {
-        const signedTx = await okx("signTransaction", { receiverId: receiverId, actions: transformActions(actions) });
+        const signedTx = await okx("signTransaction", {
+          receiverId: receiverId,
+          actions: connectorActionsToNearActions(actions)
+            .map((action) => action.functionCall)
+            .filter(Boolean),
+        });
+
         const signedTransaction = getSignedTransaction(signedTx);
         return provider.sendTransaction(signedTransaction as any);
       } catch (error) {
@@ -102,12 +93,22 @@ const OKXWallet = async () => {
       }
     },
 
-    async signAndSendTransactions({ transactions }: { transactions: Array<{ receiverId: string; actions: Array<InternalAction> }[]> }) {
+    async signAndSendTransactions({ transactions }: { transactions: Array<{ receiverId: string; actions: ConnectorAction[] }> }) {
       await checkExist();
       if (!(await okx("isSignedIn"))) throw new Error("Wallet not signed in");
 
+      if (transactions.some((transaction) => transaction.actions.some((action) => action.type !== "FunctionCall"))) {
+        throw new Error("Only FunctionCall actions are supported by OKX Wallet");
+      }
+
       try {
-        const resp = await okx("requestSignTransactions", { transactions: transformTransactions(transactions) });
+        const resp = await okx("requestSignTransactions", {
+          transactions: transactions.map((transaction) => ({
+            actions: transaction.actions.map((action) => (action as FunctionCallAction).params),
+            receiverId: transaction.receiverId,
+          })),
+        });
+
         const { txs } = resp;
         const results = [];
 
@@ -123,34 +124,26 @@ const OKXWallet = async () => {
       }
     },
 
-    async createSignedTransaction(receiverId: string, actions: Array<InternalAction>) {
+    async createSignedTransaction(receiverId: string, actions: Array<ConnectorAction>) {
       await checkExist();
       if (!(await okx("isSignedIn"))) throw new Error("Wallet not signed in");
       if (!receiverId) throw new Error("Receiver ID is required");
 
+      if (actions.some((action) => action.type !== "FunctionCall")) {
+        throw new Error("Only FunctionCall actions are supported by OKX Wallet");
+      }
+
       try {
-        const signedTx = await okx("signTransaction", { receiverId: receiverId, actions: transformActions(actions) });
+        const signedTx = await okx("signTransaction", {
+          actions: actions.map((action) => (action as FunctionCallAction).params),
+          receiverId: receiverId,
+        });
+
         const signedTransaction = getSignedTransaction(signedTx);
         return signedTransaction;
       } catch (error) {
         throw new Error("Failed to create signed transaction");
       }
-    },
-
-    async signTransaction() {
-      throw new Error(`Method not supported by OKX Wallet`);
-    },
-
-    async getPublicKey() {
-      throw new Error(`Method not supported by OKX Wallet`);
-    },
-
-    async signNep413Message() {
-      throw new Error(`Method not supported by OKX Wallet`);
-    },
-
-    async signDelegateAction() {
-      throw new Error(`Method not supported by OKX Wallet`);
     },
   };
 };

@@ -2,9 +2,13 @@ import { IPropsWalletAction } from "./wallet-action.types.ts";
 
 export const SignMessage = ({ wallet }: IPropsWalletAction) => {
   const signMessage = async () => {
-    const nonce = Buffer.from(window.crypto.getRandomValues(new Uint8Array(32)));
-    const result = await wallet.signMessage?.({ message: "Hello", recipient: "Demo app", nonce });
-    console.log(`Is verfiied: ${result?.signature}`);
+    try {
+      const nonce = new Uint8Array(window.crypto.getRandomValues(new Uint8Array(32)));
+      const result = await wallet.signMessage?.({ message: "Hello", recipient: "Demo app", nonce });
+      console.log(`Is verfiied: ${result?.signature}`);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (

@@ -1,6 +1,6 @@
 import { html } from "../helpers/html";
 import { parseUrl } from "../helpers/url";
-import { WalletManifest } from "../types/wallet";
+import { WalletManifest } from "../types";
 import { Popup } from "./Popup";
 
 const debugManifest = {

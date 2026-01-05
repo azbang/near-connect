@@ -1,4 +1,4 @@
-import { NearWalletBase } from "./wallet";
+import { NearWalletBase } from "../types";
 
 export type WalletPlugin = Partial<{
   [K in keyof NearWalletBase]: NearWalletBase[K] extends (...args: infer Args) => infer Return

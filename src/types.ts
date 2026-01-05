@@ -1,7 +1,8 @@
 import type { FinalExecutionOutcome } from "@near-js/types";
-import type { Transaction, Action } from "./transactions";
+import type { Action } from "@near-js/transactions";
+import type { ConnectorAction } from "./actions/types";
 
-export type { FinalExecutionOutcome };
+export type { FinalExecutionOutcome, Action };
 
 export type Logger = {
   log: (...logs: any[]) => void;
@@ -13,7 +14,7 @@ export type Network = "mainnet" | "testnet";
 
 export interface Account {
   accountId: string;
-  publicKey: string;
+  publicKey?: string;
 }
 
 export interface SignMessageParams {
@@ -21,42 +22,13 @@ export interface SignMessageParams {
   recipient: string;
   nonce: Uint8Array;
   network?: Network;
+  signerId?: string;
 }
 
 export interface SignedMessage {
   accountId: string;
   publicKey: string;
   signature: string;
-}
-
-export interface SignAndSendTransactionParams {
-  /**
-   * Account ID used to sign the transaction. Defaults to the first account.
-   */
-  signerId?: string;
-  /**
-   * Account ID to receive the transaction. Defaults to `contractId` defined in `init`.
-   */
-  receiverId: string;
-  /**
-   * NEAR Action(s) to sign and send to the network (e.g. `FunctionCall`). You can find more information on `Action` {@link https://github.com/near/wallet-selector/blob/main/packages/core/docs/api/transactions.md | here}.
-   */
-  actions: Array<Action>;
-  /**
-   * Specify the network to sign and send the transaction on.
-   */
-  network?: Network;
-}
-
-export interface SignAndSendTransactionsParams {
-  /**
-   * NEAR Transactions(s) to sign and send to the network. You can find more information on `Transaction` {@link https://github.com/near/wallet-selector/blob/main/packages/core/docs/api/transactions.md | here}.
-   */
-  transactions: Array<Optional<Transaction, "signerId">>;
-  /**
-   * Specify the network to sign and send the transactions on.
-   */
-  network?: Network;
 }
 
 export type EventNearWalletInjected = CustomEvent<NearWalletBase>;
@@ -70,6 +42,19 @@ export interface WalletPermissions {
   clipboardWrite?: boolean;
   usb?: boolean;
   hid?: boolean;
+}
+
+export interface SignAndSendTransactionParams {
+  network?: Network;
+  signerId?: string;
+  receiverId: string;
+  actions: Array<Action | ConnectorAction>;
+}
+
+export interface SignAndSendTransactionsParams {
+  network?: Network;
+  signerId?: string;
+  transactions: Array<{ receiverId: string; actions: Array<Action | ConnectorAction> }>;
 }
 
 export interface WalletManifest {
@@ -124,8 +109,20 @@ export interface NearWalletBase {
    * The user must be signed in to call this method as there's at least charges for gas spent.
    */
   signAndSendTransactions(params: SignAndSendTransactionsParams): Promise<Array<FinalExecutionOutcome>>;
+
   signMessage(params: SignMessageParams): Promise<SignedMessage>;
 }
+
+export interface EventMap {
+  "wallet:signIn": { wallet: NearWalletBase; accounts: Account[]; success: boolean };
+  "wallet:signOut": any;
+  "selector:manifestUpdated": any;
+  "selector:walletsChanged": any;
+}
+
+export type EventType = keyof EventMap;
+
+export type EventCallback<K extends EventType> = (payload: EventMap[K]) => void;
 
 export type WalletEvents = {
   signedIn: { contractId: string; methodNames: Array<string>; accounts: Array<Account> };
@@ -133,3 +130,18 @@ export type WalletEvents = {
   networkChanged: { networkId: string };
   signedOut: null;
 };
+
+export interface AbstractWalletConnect {
+  connect: (params: any) => Promise<{ uri?: string; approval: () => Promise<any> }>;
+  disconnect: (params: any) => Promise<void>;
+  request: (params: any) => Promise<any>;
+
+  session: {
+    keys: string[];
+    get: (key: string) => { topic: string; namespaces: any };
+  };
+
+  core: {
+    projectId?: string;
+  };
+}

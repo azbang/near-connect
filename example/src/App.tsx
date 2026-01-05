@@ -1,6 +1,6 @@
 import { FC, useMemo, useState } from "react";
-
 import { NearConnector, NearWalletBase } from "@hot-labs/near-connect";
+import SignClient from "@walletconnect/sign-client";
 
 import { NetworkSelector } from "./form-component/NetworkSelector.tsx";
 import { WalletActions } from "./WalletActions.tsx";
@@ -20,21 +20,22 @@ export const ExampleNEAR: FC = () => {
   }
 
   const [connector] = useState<NearConnector>(() => {
+    const walletConnect = SignClient.init({
+      projectId: "1292473190ce7eb75c9de67e15aaad99",
+      metadata: {
+        name: "Example App",
+        description: "Example App",
+        url: "https://example.com",
+        icons: ["/favicon.ico"],
+      },
+    });
+
     const connector = new NearConnector({
-      // manifest: "/near-connect/manifest.json",
+      manifest: process.env.NODE_ENV === "production" ? undefined : "/near-connect/repository/manifest.json",
       providers: { mainnet: ["https://relmn.aurora.dev"] },
+      walletConnect,
       network,
       logger,
-
-      walletConnect: {
-        projectId: "1292473190ce7eb75c9de67e15aaad99",
-        metadata: {
-          name: "Example App",
-          description: "Example App",
-          url: "https://example.com",
-          icons: ["/favicon.ico"],
-        },
-      },
     });
 
     connector.on("wallet:signIn", async (t) => {

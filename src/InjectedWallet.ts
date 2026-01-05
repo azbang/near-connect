@@ -7,8 +7,9 @@ import {
   SignAndSendTransactionsParams,
   SignedMessage,
   SignMessageParams,
-} from "./types/wallet";
+} from "./types";
 import { NearConnector } from "./NearConnector";
+import { nearActionsToConnectorActions } from "./actions";
 
 export class InjectedWallet {
   constructor(readonly connector: NearConnector, readonly wallet: NearWalletBase) {}
@@ -34,10 +35,10 @@ export class InjectedWallet {
   }
 
   async signAndSendTransaction(params: SignAndSendTransactionParams): Promise<FinalExecutionOutcome> {
-    await this.connector.validateBannedNearAddressInTx(params);
-
+    const actions = nearActionsToConnectorActions(params.actions);
     const network = params.network || this.connector.network;
-    const result = await this.wallet.signAndSendTransaction({ ...params, network });
+
+    const result = await this.wallet.signAndSendTransaction({ ...params, actions, network });
     if (!result) throw new Error("No result from wallet");
 
     // @ts-ignore
@@ -46,9 +47,13 @@ export class InjectedWallet {
   }
 
   async signAndSendTransactions(params: SignAndSendTransactionsParams): Promise<Array<FinalExecutionOutcome>> {
-    for (const tx of params.transactions) await this.connector.validateBannedNearAddressInTx(tx);
     const network = params.network || this.connector.network;
-    const result = await this.wallet.signAndSendTransactions({ ...params, network });
+    const transactions = params.transactions.map((transaction) => ({
+      actions: nearActionsToConnectorActions(transaction.actions),
+      receiverId: transaction.receiverId,
+    }));
+
+    const result = await this.wallet.signAndSendTransactions({ ...params, transactions, network });
     if (!result) throw new Error("No result from wallet");
 
     // @ts-ignore

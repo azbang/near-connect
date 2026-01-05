@@ -1,20 +1,11 @@
 import { WalletConnectModal } from "@walletconnect/modal";
-import { createTransaction, SignedTransaction, Transaction } from "@near-js/transactions";
+import { Action, createTransaction, SignedTransaction, Transaction } from "@near-js/transactions";
 import { AccessKeyViewRaw, FinalExecutionOutcome } from "@near-js/types";
 import { baseDecode } from "@near-js/utils";
 import { PublicKey } from "@near-js/crypto";
 
-import { createAction } from "./utils/action";
 import { NearRpc } from "./utils/rpc";
-
-type InternalAction = any;
-type SignMessageParams = any;
-
-interface SelectorTransaction {
-  signerId: string;
-  receiverId: string;
-  actions: Array<InternalAction>;
-}
+import { ConnectorAction, connectorActionsToNearActions } from "./utils/action";
 
 const WC_METHODS = ["near_signIn", "near_signOut", "near_getAccounts", "near_signTransaction", "near_signTransactions", "near_signMessage"];
 const WC_EVENTS = ["chainChanged", "accountsChanged"];
@@ -146,7 +137,10 @@ const WalletConnect = async () => {
     });
   };
 
-  const requestSignMessage = async (messageParams: SignMessageParams & { accountId?: string }, network: string) => {
+  const requestSignMessage = async (
+    messageParams: { message: string; nonce: number; recipient: string; callbackUrl?: string; accountId?: string },
+    network: string
+  ) => {
     const { message, nonce, recipient, callbackUrl, accountId } = messageParams;
     return window.selector.walletConnect.request({
       topic: (await window.selector.walletConnect.getSession()).topic,
@@ -164,7 +158,7 @@ const WalletConnect = async () => {
     });
   };
 
-  const requestSignTransaction = async (transaction: SelectorTransaction, network: string) => {
+  const requestSignTransaction = async (transaction: { signerId: string; receiverId: string; actions: Array<Action> }, network: string) => {
     const accounts = await requestAccounts(network);
     const account = accounts.find((x: any) => x.accountId === transaction.signerId);
     if (!account) throw new Error("Invalid signer id");
@@ -184,7 +178,7 @@ const WalletConnect = async () => {
       PublicKey.from(account.publicKey),
       transaction.receiverId,
       accessKey.nonce + 1,
-      transaction.actions.map((action) => createAction(action)),
+      transaction.actions,
       baseDecode(block.header.hash)
     );
 
@@ -201,7 +195,7 @@ const WalletConnect = async () => {
     return SignedTransaction.decode(Buffer.from(signatureData));
   };
 
-  const requestSignTransactions = async (transactions: Array<SelectorTransaction>, network: string) => {
+  const requestSignTransactions = async (transactions: Array<{ signerId: string; receiverId: string; actions: Array<Action> }>, network: string) => {
     if (!transactions.length) return [];
     const txs: Array<Transaction> = [];
     const [block, accounts] = await Promise.all([provider.block({ finality: "final" }), requestAccounts(network)]);
@@ -224,7 +218,7 @@ const WalletConnect = async () => {
           PublicKey.from(account.publicKey),
           transaction.receiverId,
           accessKey.nonce + i + 1,
-          transaction.actions.map((action) => createAction(action)),
+          transaction.actions,
           baseDecode(block.header.hash)
         )
       );
@@ -296,16 +290,17 @@ const WalletConnect = async () => {
       }
     },
 
-    async signAndSendTransaction({ receiverId, actions, network }: any) {
+    async signAndSendTransaction({ receiverId, actions, network }: { receiverId: string; actions: ConnectorAction[]; network: string }) {
       const accounts = await getAccounts(network).catch(() => []);
       if (!accounts.length) throw new Error("Wallet not signed in");
       const signerId = accounts[0].accountId;
-      const resolvedTransaction: SelectorTransaction = { signerId: signerId, receiverId: receiverId, actions };
+
+      const resolvedTransaction = { signerId: signerId, receiverId: receiverId, actions: connectorActionsToNearActions(actions) };
       const signedTx = await requestSignTransaction(resolvedTransaction, network);
       return provider.sendTransaction(signedTx);
     },
 
-    async signAndSendTransactions({ transactions, network }: { transactions: any[]; network: string }) {
+    async signAndSendTransactions({ transactions, network }: { transactions: Array<Transaction>; network: string }) {
       const accounts = await getAccounts(network).catch(() => []);
       if (!accounts.length) throw new Error("Wallet not signed in");
       const signerId = accounts[0].accountId;

@@ -5,9 +5,14 @@ import type { Transaction as NearTransaction } from "@near-js/transactions";
 import { createTransaction } from "@near-js/transactions";
 import { baseDecode } from "@near-js/utils";
 import { PublicKey } from "@near-js/crypto";
-import { createAction } from "../utils/action";
 
-export const createTransactions = async (transactions: Array<any>, signer: Signer, network: any): Promise<NearTransaction[]> => {
+import { ConnectorAction, connectorActionsToNearActions } from "../utils/action";
+
+export const createTransactions = async (
+  transactions: { signerId: string; receiverId: string; actions: ConnectorAction[] }[],
+  signer: Signer,
+  network: { networkId: string; nodeUrl: string }
+): Promise<NearTransaction[]> => {
   const nearTransactions: NearTransaction[] = [];
   const provider = new JsonRpcProvider({ url: network.nodeUrl });
 
@@ -23,21 +28,26 @@ export const createTransactions = async (transactions: Array<any>, signer: Signe
         public_key: publicKey.toString(),
       }),
     ]);
+
     const transaction = createTransaction(
       transactions[i].signerId,
       PublicKey.from(publicKey.toString()),
       transactions[i].receiverId,
       accessKey.nonce + i + 1,
-      transactions[i].actions.map((action: any) => createAction(action)),
+      connectorActionsToNearActions(transactions[i].actions),
       baseDecode(block.header.hash)
     );
-    console.log(transaction);
+
     nearTransactions.push(transaction);
   }
   return nearTransactions;
 };
 
-export const signAndSendTransactionsHandler = async (transactions: Array<any>, signer: Signer, network: any): Promise<Array<FinalExecutionOutcome>> => {
+export const signAndSendTransactionsHandler = async (
+  transactions: { signerId: string; receiverId: string; actions: ConnectorAction[] }[],
+  signer: Signer,
+  network: { networkId: string; nodeUrl: string }
+): Promise<Array<FinalExecutionOutcome>> => {
   const nearTxs = await createTransactions(transactions, signer, network);
   const results: Array<FinalExecutionOutcome> = [];
   for (const tx of nearTxs) {

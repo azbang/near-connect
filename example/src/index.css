@@ -108,11 +108,30 @@ body {
     cursor: pointer;
     transition: background-color 0.3s ease;
     width: 100%;
-    max-width: 15em;
 
     &:hover {
         background-color: rgb(60, 60, 60);
     }
+}
+
+.input-button.compact {
+    width: auto;
+    max-width: none;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+}
+
+.input-button.danger {
+    background-color: rgb(70, 30, 30);
+}
+
+.input-button.danger:hover {
+    background-color: rgb(95, 35, 35);
+}
+
+.input-text.mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.75rem;
 }
 
 .input-text {
