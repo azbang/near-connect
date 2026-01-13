@@ -158,8 +158,8 @@ const selector = new NearConnector({
 
 ## How to add my wallet?
 
-When you develop a connector for your wallet, you can immediately test your code on real applications that use HOT Connect. Super easy!
-Once you have written your executor script and tested it - you only need to send a PR to update repository/manifest.json. After review, your wallet will automatically become available to all dApps that use the HOT Connector.
+When you develop a connector for your wallet, you can immediately test your code on real applications that use NEAR Connect. Super easy!
+Once you have written your executor script and tested it - you only need to send a PR to update repository/manifest.json. After review, your wallet will automatically become available to all dApps that use the NEAR Connect.
 
 ![Preview](https://github.com/user-attachments/assets/80855260-82f3-4c35-ae27-034e263c7b71)
 
