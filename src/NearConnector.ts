@@ -8,6 +8,7 @@ import { ParentFrameWallet } from "./ParentFrameWallet";
 import { InjectedWallet } from "./InjectedWallet";
 import { SandboxWallet } from "./SandboxedWallet";
 import { EventMap } from "./types";
+import { WalletPlugin } from "./types/plugin";
 
 interface NearConnectorOptions {
   providers?: { mainnet?: string[]; testnet?: string[] };
@@ -274,6 +275,35 @@ export class NearConnector {
     const wallet = this.wallets.find((wallet) => wallet.manifest.id === id);
     if (!wallet) throw new Error("Wallet not found");
     return wallet;
+  }
+
+    async use(plugin: WalletPlugin): Promise<void> {
+    await this.whenManifestLoaded.catch(() => { });
+
+    this.wallets = this.wallets.map(wallet => {
+      return new Proxy(wallet, {
+        get(target, prop, receiver) {
+          const originalValue = Reflect.get(target, prop, receiver);
+
+          // If plugin has this method and it's a function on the wallet
+          if (prop in plugin && typeof originalValue === "function") {
+            const pluginMethod = (plugin as any)[prop];
+
+            // Act as middleware, can call next method in line via next()
+            return function (this: any, ...args: any[]) {
+              const next = () => originalValue.apply(target, args);
+              // Pass all args if any exist, otherwise undefined
+              // this ensures next is always the last param
+              return args.length > 0
+                ? pluginMethod.call(this, ...args, next)
+                : pluginMethod.call(this, undefined, next);
+            };
+          }
+
+          return originalValue;
+        }
+      }) as NearWalletBase;
+    });
   }
 
   on<K extends keyof EventMap>(event: K, callback: (payload: EventMap[K]) => void): void {
