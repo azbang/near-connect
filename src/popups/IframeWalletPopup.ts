@@ -24,11 +24,6 @@ export class IframeWalletPopup extends Popup<{}> {
     return html` <div class="modal-container">
       <div class="modal-content">
         <div class="modal-body" style="padding: 0; overflow: auto;"></div>
-        <div class="footer">
-          <img src="https://tgapp.herewallet.app/images/hot/hot-icon.png" alt="HOT Connector" />
-          <p>HOT Connector</p>
-          <p class="get-wallet-link">Don't have a wallet?</p>
-        </div>
       </div>
     </div>`;
   }

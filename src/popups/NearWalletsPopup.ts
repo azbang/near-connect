@@ -127,12 +127,6 @@ export class NearWalletsPopup extends Popup<{ wallets: WalletManifest[]; showSet
               <textarea style="width: 100%;" id="debug-manifest-input" rows="10">${JSON.stringify(debugManifest, null, 2)}</textarea>
               <button class="add-debug-manifest-button">Add</button>
             </div>
-
-            <div class="footer">
-              <img src="https://tgapp.herewallet.app/images/hot/hot-icon.png" alt="HOT Connector" />
-              <p>HOT Connector</p>
-              <p class="get-wallet-link">Don't have a wallet?</p>
-            </div>
           </div>
         </div>
       `;
@@ -152,12 +146,6 @@ export class NearWalletsPopup extends Popup<{ wallets: WalletManifest[]; showSet
         </div>
 
         <div class="modal-body">${this.state.wallets.map((wallet: WalletManifest) => this.walletDom(wallet))}</div>
-
-        <div class="footer">
-          <img src="https://tgapp.herewallet.app/images/hot/hot-icon.png" alt="HOT Connector" />
-          <p>HOT Connector</p>
-          <p class="get-wallet-link">Don't have a wallet?</p>
-        </div>
       </div>
     </div>`;
   }
