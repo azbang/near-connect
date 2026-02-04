@@ -5,6 +5,8 @@ import {
   Network,
   SignAndSendTransactionParams,
   SignAndSendTransactionsParams,
+  SignDelegateActionParams,
+  SignDelegateActionResult,
   SignedMessage,
   SignMessageParams,
 } from "./types";
@@ -63,5 +65,16 @@ export class InjectedWallet {
 
   async signMessage(params: SignMessageParams): Promise<SignedMessage> {
     return this.wallet.signMessage({ ...params, network: params.network || this.connector.network });
+  }
+
+  async signDelegateAction(params: SignDelegateActionParams): Promise<SignDelegateActionResult> {
+    return this.wallet.signDelegateAction({
+      ...params,
+      delegateAction: {
+        ...params.delegateAction,
+        actions: nearActionsToConnectorActions(params.delegateAction.actions),
+      },
+      network: params.network || this.connector.network,
+    });
   }
 }

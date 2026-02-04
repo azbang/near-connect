@@ -4,6 +4,8 @@ import {
   Network,
   SignAndSendTransactionParams,
   SignAndSendTransactionsParams,
+  SignDelegateActionParams,
+  SignDelegateActionResult,
   SignedMessage,
   SignMessageParams,
   WalletManifest,
@@ -57,6 +59,18 @@ export class SandboxWallet {
   async signMessage(params: SignMessageParams): Promise<SignedMessage> {
     const args = { ...params, network: params.network || this.connector.network };
     return this.executor.call("wallet:signMessage", args);
+  }
+
+  async signDelegateAction(params: SignDelegateActionParams): Promise<SignDelegateActionResult> {
+    const args = {
+      ...params,
+      delegateAction: {
+        ...params.delegateAction,
+        actions: nearActionsToConnectorActions(params.delegateAction.actions),
+      },
+      network: params.network || this.connector.network,
+    };
+    return this.executor.call("wallet:signDelegateAction", args);
   }
 }
 
