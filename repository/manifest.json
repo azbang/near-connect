@@ -67,11 +67,11 @@
     {
       "id": "meteor-wallet",
       "name": "Meteor Wallet",
-      "icon": "https://storage.herewallet.app/upload/9c3981ca59212248e09d37011c07492bf1e19d7d55b9210213af3be6079a05ae.svg",
+      "icon": "https://storage.googleapis.com/meteor-apps-v2/graphics/meteor_connect_ui/meteor-logo-svg.svg",
       "description": "The most simple and secure wallet to manage your crypto, access DeFi, and explore Web3",
       "website": "https://meteorwallet.app/",
-      "version": "1.0.0",
-      "executor": "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/meteor.js",
+      "version": "1.1.0",
+      "executor": "https://storage.googleapis.com/meteor-apps-v2/near-connect/executor/latest/meteor-near-connect.js",
       "type": "sandbox",
 
       "features": {
@@ -79,6 +79,7 @@
         "signInWithoutAddKey": true,
         "signAndSendTransaction": true,
         "signAndSendTransactions": true,
+        "signDelegateActions": true,
         "mainnet": true,
         "testnet": true
       },
@@ -90,7 +91,12 @@
 
       "permissions": {
         "storage": true,
-        "allowsOpen": ["https://wallet.meteorwallet.app"]
+        "allowsOpen": [
+          "https://chromewebstore.google.com",
+          "https://wallet.meteorwallet.app",
+          "https://meteorwallet.app"
+        ],
+        "external": ["meteorCom", "meteorComV2"]
       }
     },
     {
