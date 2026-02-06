@@ -11,12 +11,11 @@
   "homepage": "https://github.com/hot-dao/near-selector",
   "scripts": {
     "postinstall": "patch-package",
-    "build:wallets": "yarn build:hotwallet && yarn build:mnw && yarn build:near-mobile && yarn build:meteor && yarn build:wallet-connect && yarn build:nightly && yarn build:okx",
+    "build:wallets": "yarn build:hotwallet && yarn build:mnw && yarn build:near-mobile && yarn build:wallet-connect && yarn build:nightly && yarn build:okx",
     "build:wallet-connect": "PACKAGE=wallet-connect vite build",
     "build:near-mobile": "PACKAGE=near-mobile vite build",
     "build:hotwallet": "PACKAGE=hotwallet vite build",
     "build:nightly": "PACKAGE=nightly vite build",
-    "build:meteor": "PACKAGE=meteor vite build",
     "build:okx": "PACKAGE=okx vite build",
     "build:mnw": "PACKAGE=mnw vite build"
   },
@@ -24,7 +23,6 @@
     "@near-js/crypto": "^2.5.1",
     "@near-js/transactions": "^2.5.1",
     "@here-wallet/core": "^3.4.0",
-    "@meteorwallet/sdk": "1.0.9",
     "@noble/hashes": "^1.4.0",
     "@peersyst/near-mobile-signer": "^1.1.4",
     "@types/node": "^24.9.1",
