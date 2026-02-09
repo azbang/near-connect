@@ -87,7 +87,7 @@ export interface WalletFeatures {
   signAndSendTransaction: boolean;
   signAndSendTransactions: boolean;
   signInWithoutAddKey: boolean;
-  signDelegateAction: boolean;
+  signDelegateActions: boolean;
   mainnet: boolean;
   testnet: boolean;
 }

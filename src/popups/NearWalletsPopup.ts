@@ -18,7 +18,7 @@ const debugManifest = {
     signInWithoutAddKey: true,
     signAndSendTransaction: true,
     signAndSendTransactions: true,
-    signDelegateAction: true,
+    signDelegateActions: true,
   },
   permissions: {
     storage: true,
