@@ -54,12 +54,14 @@ export const ExampleNEAR: FC = () => {
       setAccount(undefined);
     });
 
-    connector.wallet().then(async (wallet) => {
-      wallet.getAccounts().then((t) => {
-        setAccount(t[0]);
-        setWallet(wallet);
-      });
-    });
+    // commented out this code as it will cause race-condition with autoConnect
+    // and setting the account/wallet incorrectly
+    // connector.wallet().then(async (wallet) => {
+    //   wallet.getAccounts().then((t) => {
+    //     setAccount(t[0]);
+    //     setWallet(wallet);
+    //   });
+    // });
 
     return connector;
   });
