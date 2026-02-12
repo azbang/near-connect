@@ -274,7 +274,7 @@ export class NearConnector {
           wallet, accounts: accounts.map((account) => ({
             accountId: account.accountId,
             publicKey: account.publicKey,
-          })), success: true
+          })), success: true, source: 'signInAndSignMessage'
         });
       } else {
         const accounts = await wallet.signIn({
@@ -286,7 +286,7 @@ export class NearConnector {
         if (!accounts?.length) throw new Error("Failed to sign in");
 
         this.logger?.log(`Signed in to wallet`, walletId, accounts);
-        this.events.emit("wallet:signIn", { wallet, accounts, success: true });
+        this.events.emit("wallet:signIn", { wallet, accounts, success: true, source: 'signIn' });
       }
       return wallet;
     } catch (e) {

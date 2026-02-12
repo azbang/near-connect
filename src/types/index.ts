@@ -167,7 +167,7 @@ export interface NearWalletBase {
 }
 
 export interface EventMap {
-  "wallet:signIn": { wallet: NearWalletBase; accounts: Account[]; success: boolean };
+  "wallet:signIn": { wallet: NearWalletBase; accounts: Account[]; success: boolean; source: "signIn" | "signInAndSignMessage" };
   "wallet:signInAndSignMessage": { wallet: NearWalletBase; accounts: AccountWithSignedMessage[]; success: boolean };
   "wallet:signOut": any;
   "selector:manifestUpdated": any;
