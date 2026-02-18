@@ -158,7 +158,7 @@ const selector = new NearConnector({
 
 ## Branding UI
 
-Currently, the library is branded as HOT Connector in the footer of modal windows. You can set your own brand or completely disable the footer using this method:
+Currently, the library is branded as NEAR Connector in the footer of modal windows. You can set your own brand or completely disable the footer using this method:
 
 ```ts
 const selector = new NearConnector({

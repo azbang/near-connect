@@ -587,8 +587,8 @@ class E extends b {
       <div class="modal-content">
         <div class="modal-body" style="padding: 0; overflow: auto;"></div>
         <div class="footer">
-          <img src="https://tgapp.herewallet.app/images/hot/hot-icon.png" alt="HOT Connector" />
-          <p>HOT Connector</p>
+          <img src="https://tgapp.herewallet.app/images/hot/hot-icon.png" alt="NEAR Connector" />
+          <p>NEAR Connector</p>
           <p class="get-wallet-link">Don't have a wallet?</p>
         </div>
       </div>
@@ -1548,8 +1548,8 @@ class q {
   constructor(e) {
     this.db = new j("hot-connector", "wallets"), this.storage = e?.storage ?? new k(), this.events = e?.events ?? new y(), this.logger = e?.logger, this.network = e?.network ?? "mainnet", this.walletConnect = e?.walletConnect, this.autoConnect = e?.autoConnect ?? !0, this.providers = e?.providers ?? { mainnet: [], testnet: [] }, this.excludedWallets = e?.excludedWallets ?? [], this.features = e?.features ?? {}, this.signInData = e?.signIn, e?.footerBranding !== void 0 ? this.footerBranding = e?.footerBranding : this.footerBranding = {
       icon: "https://tgapp.herewallet.app/images/hot/hot-icon.png",
-      heading: "HOT Connector",
-      link: "https://download.hot-labs.org?hotconnector",
+      heading: "NEAR Connector",
+      link: "https://wallet.near.org",
       linkText: "Don't have a wallet?"
     }, this.whenManifestLoaded = new Promise(async (t) => {
       e?.manifest == null || typeof e.manifest == "string" ? this.manifest = await this._loadManifest(e?.manifest).catch(() => ({ wallets: [], version: "1.0.0" })) : this.manifest = e?.manifest ?? { wallets: [], version: "1.0.0" };

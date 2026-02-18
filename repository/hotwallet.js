@@ -256,7 +256,7 @@ input::-webkit-inner-spin-button {
       href="https://fonts.cdnfonts.com/css/cabinet-grotesk"
     />
     <style>${styles}</style>
-    <title>HOT Connector</title>
+    <title>NEAR Connector</title>
 `,bodyMobile=`
     <div class="popup">
       <h2 class="title">Approve in <span>App</span></h2>

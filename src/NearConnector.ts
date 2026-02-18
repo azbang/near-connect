@@ -86,8 +86,8 @@ export class NearConnector {
     } else {
       this.footerBranding = {
         icon: "https://tgapp.herewallet.app/images/hot/hot-icon.png",
-        heading: "HOT Connector",
-        link: "https://download.hot-labs.org?hotconnector",
+        heading: "NEAR Connector",
+        link: "https://wallet.near.org",
         linkText: "Don't have a wallet?",
       };
     }

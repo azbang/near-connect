@@ -11,7 +11,7 @@ export const head = /* html */ `
       href="https://fonts.cdnfonts.com/css/cabinet-grotesk"
     />
     <style>${styles}</style>
-    <title>HOT Connector</title>
+    <title>NEAR Connector</title>
 `;
 
 export const bodyMobile = /* html */ `

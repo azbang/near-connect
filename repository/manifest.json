@@ -34,7 +34,8 @@
           "https://t.me/hot_wallet/app",
           "https://play.google.com",
           "https://apps.apple.com",
-          "hotwallet://"
+          "hotwallet://",
+          "https://wallet.near.org"
         ]
       }
     },
