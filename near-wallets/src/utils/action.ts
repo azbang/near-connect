@@ -1,12 +1,8 @@
 import { PublicKey } from "@near-js/crypto";
 import { baseDecode } from "@near-js/utils";
 import {
-  AccessKey,
-  AccessKeyPermission,
   Action,
   actionCreators,
-  FullAccessPermission,
-  FunctionCallPermission,
   GlobalContractDeployMode,
   GlobalContractIdentifier,
 } from "@near-js/transactions";
@@ -15,7 +11,6 @@ import {
 // @ts-ignore - BN.js doesn't have proper ESM types
 import BN from "bn.js";
 import { transactions as nearApiTransactions, utils as nearApiUtils } from "near-api-js";
-import { fullAccessKey } from "near-api-js/lib/transaction";
 
 export interface CreateAccountAction {
   type: "CreateAccount";
