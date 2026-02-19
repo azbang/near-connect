@@ -28,11 +28,42 @@ Unlike near-wallet-selector, this library provides a secure execution environmen
 import { NearConnector } from "@hot-labs/near-connect";
 
 const connector = new NearConnector();
+
 connector.on("wallet:signOut", async () => {});
+```
+
+### Listen for "sign in" events
+
+```ts
+// Listen for account sign in
 connector.on("wallet:signIn", async (t) => {
-  const wallet = await connector.wallet(); // api like near-wallet-selector
+  const source = t.source; // "signIn" or "signInAndSignMessage" (see below)
+  const wallet = await connector.wallet();
   const address = t.accounts[0].accountId;
-  wallet.signMessage(); // all methods like near-wallet-selector
+});
+
+// Listen for account sign in (including signed message)
+connector.on("wallet:signInAndSignMessage", async (t) => {
+  const wallet = await connector.wallet();
+  const address = t.accounts[0].accountId;
+  const signedMessage = t.accounts[0].signedMessage;
+});
+```
+
+### Initialize connection to wallet and sign in
+
+```ts
+// Initiate connector and sign in (account only) and trigger "wallet:signIn"
+await connector.connect();
+
+// Initiate connector and sign in (account and a signed message)
+// Triggers "wallet:signInAndSignMessage" (and "wallet:signIn" with "source" = "signInAndSignMessage")
+await connector.connect({
+  signMessageParams: {
+    message: "Sign in to Example App",
+    recipient: "Demo app",
+    nonce
+  }
 });
 ```
 

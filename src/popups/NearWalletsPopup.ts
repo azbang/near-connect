@@ -16,6 +16,7 @@ const debugManifest = {
   features: {
     signMessage: true,
     signInWithoutAddKey: true,
+    signInAndSignMessage: true,
     signAndSendTransaction: true,
     signAndSendTransactions: true,
     signDelegateActions: true,

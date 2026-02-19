@@ -12,10 +12,12 @@ import {
   WalletManifest,
   SignDelegateActionsParams,
   SignDelegateActionsResponse,
+  type AccountWithSignedMessage,
+  type SignInAndSignMessageParams,
 } from "./types";
 
 export class ParentFrameWallet {
-  constructor(readonly connector: NearConnector, readonly manifest: WalletManifest) {}
+  constructor(readonly connector: NearConnector, readonly manifest: WalletManifest) { }
 
   callParentFrame(method: string, params: any) {
     const id = uuid4();
@@ -43,6 +45,18 @@ export class ParentFrameWallet {
 
     if (Array.isArray(result)) return result;
     return [result as Account];
+  }
+
+  async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<Array<AccountWithSignedMessage>> {
+    const result = await this.callParentFrame("near:signInAndSignMessage", {
+      network: data?.network || this.connector.network,
+      contractId: data?.contractId,
+      methodNames: data?.methodNames,
+      messageParams: data.messageParams,
+    });
+
+    if (Array.isArray(result)) return result;
+    return [result as AccountWithSignedMessage];
   }
 
   async signOut(data?: { network?: Network }): Promise<void> {
@@ -85,7 +99,7 @@ export class ParentFrameWallet {
       })),
       network: params.network || this.connector.network,
     };
-    
+
     return this.callParentFrame("near:signDelegateActions", args) as Promise<SignDelegateActionsResponse>;
   }
 }

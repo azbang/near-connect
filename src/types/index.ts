@@ -12,9 +12,26 @@ export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 export type Network = "mainnet" | "testnet";
 
+export interface NearConnector_ConnectOptions {
+  walletId?: string;
+  /**
+   * If this is provided, the connector will filter for wallets that support the "signInAndSignMessage" feature and use these params for the message to be signed along with sign in.
+   * 
+   * The account and the signed message can be listened for using the "wallet:signInAndSignMessage" event, which will be emitted along
+   * with the "wallet:signIn" event. This allows you to get the signed message right after sign in.
+   * 
+   * This is useful for cases where you want to verify ownership of the account during sign in without any additional steps.
+   */
+  signMessageParams?: SignMessageDuringSignInParams;
+}
+
 export interface Account {
   accountId: string;
   publicKey?: string;
+}
+
+export interface AccountWithSignedMessage extends Account {
+  signedMessage: SignedMessage;
 }
 
 export interface SignMessageParams {
@@ -24,6 +41,8 @@ export interface SignMessageParams {
   network?: Network;
   signerId?: string;
 }
+
+export type SignMessageDuringSignInParams = Omit<SignMessageParams, "signerId" | "network">;
 
 export interface SignedMessage {
   accountId: string;
@@ -87,6 +106,7 @@ export interface WalletFeatures {
   signAndSendTransaction: boolean;
   signAndSendTransactions: boolean;
   signInWithoutAddKey: boolean;
+  signInAndSignMessage: boolean;
   signDelegateActions: boolean;
   mainnet: boolean;
   testnet: boolean;
@@ -101,13 +121,27 @@ export interface SignDelegateActionsResponse {
   signedDelegateActions: SignDelegateActionResult[];
 }
 
+export interface SignInParams {
+  network?: Network;
+  contractId?: string;
+  methodNames?: Array<string>;
+}
+
+export interface SignInAndSignMessageParams extends SignInParams {
+  messageParams: SignMessageDuringSignInParams;
+}
+
 export interface NearWalletBase {
   manifest: WalletManifest;
 
   /**
    * Programmatically sign in. Hardware wallets (e.g. Ledger) require `derivationPaths` to validate access key permissions.
    */
-  signIn(data?: { network?: Network; contractId?: string; methodNames?: Array<string> }): Promise<Array<Account>>;
+  signIn(data?: SignInParams): Promise<Array<Account>>;
+  /**
+   * Programmatically sign in. Hardware wallets (e.g. Ledger) require `derivationPaths` to validate access key permissions.
+   */
+  signInAndSignMessage(data: SignInAndSignMessageParams): Promise<Array<AccountWithSignedMessage>>;
   /**
    * Sign out from the wallet.
    */
@@ -135,7 +169,8 @@ export interface NearWalletBase {
 }
 
 export interface EventMap {
-  "wallet:signIn": { wallet: NearWalletBase; accounts: Account[]; success: boolean };
+  "wallet:signIn": { wallet: NearWalletBase; accounts: Account[]; success: boolean; source: "signIn" | "signInAndSignMessage" };
+  "wallet:signInAndSignMessage": { wallet: NearWalletBase; accounts: AccountWithSignedMessage[]; success: boolean };
   "wallet:signOut": any;
   "selector:manifestUpdated": any;
   "selector:walletsChanged": any;

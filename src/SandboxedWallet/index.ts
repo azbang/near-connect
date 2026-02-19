@@ -9,6 +9,8 @@ import {
   SignMessageParams,
   WalletManifest,
   SignDelegateActionsResponse,
+  type AccountWithSignedMessage,
+  type SignInAndSignMessageParams,
 } from "../types";
 import { NearConnector } from "../NearConnector";
 import { nearActionsToConnectorActions } from "../actions";
@@ -26,6 +28,15 @@ export class SandboxWallet {
       network: data?.network || this.connector.network,
       contractId: data?.contractId,
       methodNames: data?.methodNames,
+    });
+  }
+
+  async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<Array<AccountWithSignedMessage>> {
+    return this.executor.call("wallet:signInAndSignMessage", {
+      network: data?.network || this.connector.network,
+      contractId: data?.contractId,
+      methodNames: data?.methodNames,
+      messageParams: data.messageParams,
     });
   }
 

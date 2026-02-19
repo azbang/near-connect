@@ -4,6 +4,7 @@ import SignClient from "@walletconnect/sign-client";
 
 import { NetworkSelector } from "./form-component/NetworkSelector.tsx";
 import { WalletActions } from "./WalletActions.tsx";
+import type { NearConnector_ConnectOptions } from "../../src/types/index.ts";
 
 export const ExampleNEAR: FC = () => {
   const [network, setNetwork] = useState<"testnet" | "mainnet">("mainnet");
@@ -11,7 +12,7 @@ export const ExampleNEAR: FC = () => {
   const [wallet, setWallet] = useState<NearWalletBase | undefined>();
 
   const logger = {
-    log: (args: any) => console.log(args),
+    log: (...args: any[]) => console.log(args),
   };
 
   function setAccount(account: { accountId: string } | undefined) {
@@ -44,26 +45,32 @@ export const ExampleNEAR: FC = () => {
       setAccount(t.accounts[0]);
     });
 
+    connector.on("wallet:signInAndSignMessage", async (t) => {
+      logger.log(`[wallet:signInAndSignMessage] Signed in to wallet accounts (with signed messages)`, t.accounts);
+    });
+
     connector.on("wallet:signOut", async () => {
       setWallet(undefined);
       setAccount(undefined);
     });
 
-    connector.wallet().then(async (wallet) => {
-      wallet.getAccounts().then((t) => {
-        setAccount(t[0]);
-        setWallet(wallet);
-      });
-    });
+    // commented out this code as it will cause race-condition with autoConnect
+    // and setting the account/wallet incorrectly
+    // connector.wallet().then(async (wallet) => {
+    //   wallet.getAccounts().then((t) => {
+    //     setAccount(t[0]);
+    //     setWallet(wallet);
+    //   });
+    // });
 
     return connector;
   });
 
   const networkAccount = useMemo(() => (account != null && account.network === network ? account : undefined), [account, network]);
 
-  const connect = async () => {
+  const connect = async (options: NearConnector_ConnectOptions = {}) => {
     if (networkAccount != null) return connector.disconnect();
-    await connector.connect();
+    await connector.connect(options);
   };
 
   return (
@@ -79,6 +86,17 @@ export const ExampleNEAR: FC = () => {
       <button className={"input-button"} onClick={() => connect()}>
         {networkAccount != null ? `${networkAccount.id} (logout)` : "Connect"}
       </button>
+      {networkAccount == null && (
+        <button
+          className={"input-button"}
+          onClick={() => {
+            const nonce = new Uint8Array(window.crypto.getRandomValues(new Uint8Array(32)));
+            connect({ signMessageParams: { message: "Sign in to Example App", recipient: "Demo app", nonce } });
+          }}
+        >
+          Connect (With Signed Message)
+        </button>
+      )}
 
       {networkAccount != null && <WalletActions wallet={wallet!} network={network} />}
     </div>
