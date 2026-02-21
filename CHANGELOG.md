@@ -1,3 +1,10 @@
+# 0.10.0
+
+- Add **signInAndSignMessage** method
+- Fix footer branding bugs
+- Remove default HOT Branding
+- Make icon in branding optional
+
 # 0.9.0
 
 - Add connect.use(WalletPlugin): **Experimental** feature to override wallet methods

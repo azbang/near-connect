@@ -34,7 +34,6 @@ export const ExampleNEAR: FC = () => {
     const connector = new NearConnector({
       manifest: process.env.NODE_ENV === "production" ? undefined : "/near-connect/repository/manifest.json",
       providers: { mainnet: ["https://relmn.aurora.dev"] },
-      footerBranding: null,
       walletConnect,
       network,
       logger,

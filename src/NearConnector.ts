@@ -3,12 +3,23 @@ import { NearWalletsPopup } from "./popups/NearWalletsPopup";
 import { LocalStorage, DataStorage } from "./helpers/storage";
 import IndexedDB from "./helpers/indexdb";
 
-import { EventNearWalletInjected, WalletManifest, Network, WalletFeatures, Logger, NearWalletBase, AbstractWalletConnect, FooterBranding, type NearConnector_ConnectOptions, type AccountWithSignedMessage, type Account, type SignMessageParams } from "./types";
+import type {
+  EventMap,
+  EventNearWalletInjected,
+  WalletManifest,
+  Network,
+  WalletFeatures,
+  Logger,
+  NearWalletBase,
+  AbstractWalletConnect,
+  FooterBranding,
+  NearConnector_ConnectOptions,
+} from "./types";
+import type { WalletPlugin } from "./types/plugin";
+
 import { ParentFrameWallet } from "./ParentFrameWallet";
 import { InjectedWallet } from "./InjectedWallet";
 import { SandboxWallet } from "./SandboxedWallet";
-import { WalletPlugin } from "./types/plugin";
-import { EventMap } from "./types";
 
 interface NearConnectorOptions {
   providers?: { mainnet?: string[]; testnet?: string[] };
@@ -50,7 +61,7 @@ function createFilterForWalletFeatures(features: Partial<WalletFeatures>) {
       if (value && !wallet.manifest.features?.[key as keyof WalletFeatures]) return false;
       return true;
     });
-  }
+  };
 }
 
 export class NearConnector {
@@ -96,7 +107,7 @@ export class NearConnector {
       this.footerBranding = options?.footerBranding;
     } else {
       this.footerBranding = {
-        icon: "https://tgapp.herewallet.app/images/hot/hot-icon.png",
+        icon: "https://pages.near.org/wp-content/uploads/2023/11/NEAR_token.png",
         heading: "NEAR Connector",
         link: "https://wallet.near.org",
         linkText: "Don't have a wallet?",
@@ -129,13 +140,15 @@ export class NearConnector {
       window.dispatchEvent(new Event("near-selector-ready"));
       window.addEventListener("message", async (event) => {
         if (event.data.type === "near-wallet-injected") {
-          await this.whenManifestLoaded.catch(() => { });
+          await this.whenManifestLoaded.catch(() => {});
+
           this.wallets = this.wallets.filter((wallet) => wallet.manifest.id !== event.data.manifest.id);
           this.wallets.unshift(new ParentFrameWallet(this, event.data.manifest));
           this.events.emit("selector:walletsChanged", {});
-          if (this.autoConnect) this.connect({
-            walletId: event.data.manifest.id
-          });
+
+          if (this.autoConnect) {
+            this.connect({ walletId: event.data.manifest.id });
+          }
         }
       });
     }
@@ -186,7 +199,7 @@ export class NearConnector {
 
   async switchNetwork(network: "mainnet" | "testnet", signInData?: { contractId?: string; methodNames?: Array<string> }) {
     if (this.network === network) return;
-    await this.disconnect().catch(() => { });
+    await this.disconnect().catch(() => {});
     if (signInData) this.signInData = signInData;
     this.network = network;
     await this.connect();
@@ -228,8 +241,8 @@ export class NearConnector {
     this.events.emit("selector:walletsChanged", {});
   }
 
-  async selectWallet({ features = {} }: { features?: Partial<WalletFeatures>; } = {}) {
-    await this.whenManifestLoaded.catch(() => { });
+  async selectWallet({ features = {} }: { features?: Partial<WalletFeatures> } = {}) {
+    await this.whenManifestLoaded.catch(() => {});
     return new Promise<string>((resolve, reject) => {
       const popup = new NearWalletsPopup({
         footer: this.footerBranding,
@@ -248,7 +261,7 @@ export class NearConnector {
     let walletId = input.walletId;
     const signMessageParams = input.signMessageParams;
 
-    await this.whenManifestLoaded.catch(() => { });
+    await this.whenManifestLoaded.catch(() => {});
     if (!walletId) walletId = await this.selectWallet(input.signMessageParams != null ? { features: { signInAndSignMessage: true } } : undefined);
 
     try {
@@ -262,8 +275,8 @@ export class NearConnector {
         const accounts = await wallet.signInAndSignMessage({
           contractId: this.signInData?.contractId,
           methodNames: this.signInData?.methodNames,
-          network: this.network,
           messageParams: signMessageParams,
+          network: this.network,
         });
 
         if (!accounts?.length) throw new Error("Failed to sign in");
@@ -271,10 +284,13 @@ export class NearConnector {
         this.logger?.log(`Signed in to wallet (with signed message)`, walletId, accounts);
         this.events.emit("wallet:signInAndSignMessage", { wallet, accounts, success: true });
         this.events.emit("wallet:signIn", {
-          wallet, accounts: accounts.map((account) => ({
+          wallet,
+          accounts: accounts.map((account) => ({
             accountId: account.accountId,
             publicKey: account.publicKey,
-          })), success: true, source: 'signInAndSignMessage'
+          })),
+          success: true,
+          source: "signInAndSignMessage",
         });
       } else {
         const accounts = await wallet.signIn({
@@ -286,7 +302,7 @@ export class NearConnector {
         if (!accounts?.length) throw new Error("Failed to sign in");
 
         this.logger?.log(`Signed in to wallet`, walletId, accounts);
-        this.events.emit("wallet:signIn", { wallet, accounts, success: true, source: 'signIn' });
+        this.events.emit("wallet:signIn", { wallet, accounts, success: true, source: "signIn" });
       }
       return wallet;
     } catch (e) {
@@ -304,7 +320,7 @@ export class NearConnector {
   }
 
   async getConnectedWallet() {
-    await this.whenManifestLoaded.catch(() => { });
+    await this.whenManifestLoaded.catch(() => {});
     const id = await this.storage.get("selected-wallet");
     const wallet = this.wallets.find((wallet) => wallet.manifest.id === id);
     if (!wallet) throw new Error("No wallet selected");
@@ -316,7 +332,7 @@ export class NearConnector {
   }
 
   async wallet(id?: string | null): Promise<NearWalletBase> {
-    await this.whenManifestLoaded.catch(() => { });
+    await this.whenManifestLoaded.catch(() => {});
 
     if (!id) {
       return this.getConnectedWallet()
@@ -333,7 +349,7 @@ export class NearConnector {
   }
 
   async use(plugin: WalletPlugin): Promise<void> {
-    await this.whenManifestLoaded.catch(() => { });
+    await this.whenManifestLoaded.catch(() => {});
 
     this.wallets = this.wallets.map((wallet) => {
       return new Proxy(wallet, {

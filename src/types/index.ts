@@ -16,10 +16,10 @@ export interface NearConnector_ConnectOptions {
   walletId?: string;
   /**
    * If this is provided, the connector will filter for wallets that support the "signInAndSignMessage" feature and use these params for the message to be signed along with sign in.
-   * 
+   *
    * The account and the signed message can be listened for using the "wallet:signInAndSignMessage" event, which will be emitted along
    * with the "wallet:signIn" event. This allows you to get the signed message right after sign in.
-   * 
+   *
    * This is useful for cases where you want to verify ownership of the account during sign in without any additional steps.
    */
   signMessageParams?: SignMessageDuringSignInParams;
@@ -203,7 +203,7 @@ export interface AbstractWalletConnect {
 }
 
 export interface FooterBranding {
-  icon: string;
+  icon?: string;
   heading: string;
   link: string;
   linkText: string;

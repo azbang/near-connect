@@ -112,7 +112,7 @@ export class NearWalletsPopup extends Popup<{ wallets: WalletManifest[]; showSet
     const { icon, heading, link, linkText } = this.delegate.footer;
     return html`
       <div class="footer">
-        <img src="${icon}" alt="${heading}" />
+        ${icon ? html`<img src="${icon}" alt="${heading}" />` : ""}
         <p>${heading}</p>
         <a class="get-wallet-link" href="${link}" target="_blank">${linkText}</a>
       </div>
