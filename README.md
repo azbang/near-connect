@@ -20,6 +20,7 @@ Unlike near-wallet-selector, this library provides a secure execution environmen
 - Near Mobile Wallet
 - Unity Wallet
 - OKX Wallet
+- NEAR CLI (via [near-cli-rs](https://near.cli.rs))
 - any wallet via WalletConnect
 
 ## Dapp integration

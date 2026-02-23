@@ -278,7 +278,7 @@
       "description": "Sign transactions using near-cli-rs in your terminal",
       "website": "https://near.cli.rs",
       "version": "1.0.0",
-      "executor": "/near-connect/repository/near-cli.js",
+      "executor": "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/near-cli.js",
       "type": "sandbox",
       "platform": {},
       "features": {
