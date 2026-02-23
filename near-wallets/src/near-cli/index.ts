@@ -218,25 +218,25 @@ function showLoading(message: string): void {
   window.selector.ui.showIframe();
 }
 
-function storedKeyCanSign(receiverId: string, actions: Action[], fck: FunctionCallKey | null): boolean {
-  if (!fck || fck.contractId !== receiverId) return false;
+function storedKeyCanSign(receiverId: string, actions: Action[], fcKey: FunctionCallKey | null): boolean {
+  if (!fcKey || fcKey.contractId !== receiverId) return false;
   if (actions.length !== 1) return false;
   const action = actions[0];
   return !!(
     action.functionCall &&
     action.functionCall.deposit.toString() === "0" &&
-    (fck.methods.length === 0 || fck.methods.includes(action.functionCall.methodName))
+    (fcKey.methods.length === 0 || fcKey.methods.includes(action.functionCall.methodName))
   );
 }
 
 async function signUsingKeyPair(
   network: string,
   accountId: string,
-  fck: FunctionCallKey,
+  fcKey: FunctionCallKey,
   receiverId: string,
   actions: Action[],
 ): Promise<FinalExecutionOutcome> {
-  const keyPair = KeyPair.fromString(fck.privateKey as any);
+  const keyPair = KeyPair.fromString(fcKey.privateKey as any);
   const rpc = getRpc(network);
   const signer = await InMemorySigner.fromKeyPair(network, accountId, keyPair);
   const connection = new Connection(network, rpc, signer, "");
@@ -265,10 +265,10 @@ async function verifyTransaction(
 class NearCliWallet {
   signIn = async ({ contractId, methodNames, network }: any) => {
     const existingAccountId = await getStoredAccountId(network);
-    const existingFck = await getStoredFunctionCallKey(network);
+    const existingKey = await getStoredFunctionCallKey(network);
 
-    if (existingAccountId && (!contractId || existingFck?.contractId === contractId)) {
-      const publicKey = existingFck ? KeyPair.fromString(existingFck.privateKey as any).getPublicKey().toString() : "";
+    if (existingAccountId && (!contractId || existingKey?.contractId === contractId)) {
+      const publicKey = existingKey ? KeyPair.fromString(existingKey.privateKey as any).getPublicKey().toString() : "";
       return [{ accountId: existingAccountId, publicKey }];
     }
 
@@ -294,13 +294,13 @@ class NearCliWallet {
 
       await promptAddKeyCommand(command, needsAccountId ? "Step 2 of 2" : undefined);
 
-      const fck: FunctionCallKey = {
+      const fcKey: FunctionCallKey = {
         privateKey: keyPair.toString(),
         contractId,
         methods: methodNames || [],
       };
       await setStoredAccountId(network, accountId);
-      await setStoredFunctionCallKey(network, fck);
+      await setStoredFunctionCallKey(network, fcKey);
 
       return [{ accountId, publicKey }];
     }
@@ -312,10 +312,10 @@ class NearCliWallet {
   signInAndSignMessage = async ({ contractId, methodNames, network, messageParams }: any) => {
     const { message, recipient, nonce } = messageParams;
     const existingAccountId = await getStoredAccountId(network);
-    const existingFck = await getStoredFunctionCallKey(network);
+    const existingKey = await getStoredFunctionCallKey(network);
 
     const needsAccountId = !existingAccountId;
-    const needsAddKey = contractId && existingFck?.contractId !== contractId;
+    const needsAddKey = contractId && existingKey?.contractId !== contractId;
 
     let totalSteps = 1;
     if (needsAccountId) totalSteps++;
@@ -355,12 +355,12 @@ class NearCliWallet {
 
       await promptAddKeyCommand(addKeyCmd, `Step ${++currentStep} of ${totalSteps}`);
 
-      const fck: FunctionCallKey = {
+      const fcKey: FunctionCallKey = {
         privateKey: keyPair.toString(),
         contractId,
         methods: methodNames || [],
       };
-      await setStoredFunctionCallKey(network, fck);
+      await setStoredFunctionCallKey(network, fcKey);
     }
 
     await setStoredAccountId(network, accountId);
@@ -386,8 +386,8 @@ class NearCliWallet {
   getAccounts = async ({ network }: { network: string }) => {
     const accountId = await getStoredAccountId(network);
     if (!accountId) return [];
-    const fck = await getStoredFunctionCallKey(network);
-    const publicKey = fck ? KeyPair.fromString(fck.privateKey as any).getPublicKey().toString() : "";
+    const fcKey = await getStoredFunctionCallKey(network);
+    const publicKey = fcKey ? KeyPair.fromString(fcKey.privateKey as any).getPublicKey().toString() : "";
     return [{ accountId, publicKey }];
   };
 
@@ -404,11 +404,11 @@ class NearCliWallet {
     if (!accountId) throw new Error("Wallet not signed in");
 
     const actions = connectorActionsToNearActions(connectorActions);
-    const fck = await getStoredFunctionCallKey(network);
+    const fcKey = await getStoredFunctionCallKey(network);
 
-    if (storedKeyCanSign(receiverId, actions, fck)) {
+    if (storedKeyCanSign(receiverId, actions, fcKey)) {
       try {
-        return await signUsingKeyPair(network, accountId, fck!, receiverId, actions);
+        return await signUsingKeyPair(network, accountId, fcKey!, receiverId, actions);
       } catch (error) {
         console.warn("Failed to sign using stored key, falling back to CLI", error);
       }
@@ -441,7 +441,7 @@ class NearCliWallet {
     const accountId = await getStoredAccountId(network);
     if (!accountId) throw new Error("Wallet not signed in");
 
-    const fck = await getStoredFunctionCallKey(network);
+    const fcKey = await getStoredFunctionCallKey(network);
     const rpc = getRpc(network);
     const results: FinalExecutionOutcome[] = [];
 
@@ -449,9 +449,9 @@ class NearCliWallet {
       for (const tx of transactions) {
         const actions = connectorActionsToNearActions(tx.actions);
 
-        if (storedKeyCanSign(tx.receiverId, actions, fck)) {
+        if (storedKeyCanSign(tx.receiverId, actions, fcKey)) {
           try {
-            results.push(await signUsingKeyPair(network, accountId, fck!, tx.receiverId, actions));
+            results.push(await signUsingKeyPair(network, accountId, fcKey!, tx.receiverId, actions));
             continue;
           } catch (error) {
             console.warn("Failed to sign using stored key, falling back to CLI", error);
