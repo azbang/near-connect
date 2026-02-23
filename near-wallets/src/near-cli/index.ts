@@ -159,10 +159,15 @@ function promptTransactionHash(command: string): Promise<string> {
     const submit = () => {
       const raw = input.value.trim();
       if (!raw) {
-        showError(root, "Please paste the transaction hash");
+        showError(root, "Please paste the transaction hash or explorer URL");
         return;
       }
-      // Extract hash from raw paste — user may paste "Transaction ID: HASH" or just "HASH"
+      // Extract hash from: explorer URL, "Transaction ID: HASH", or plain HASH
+      const urlMatch = raw.match(/(?:txns?|transactions)\/([A-Za-z0-9]{43,44})/);
+      if (urlMatch) {
+        resolve(urlMatch[1]);
+        return;
+      }
       const match = raw.match(/(?:Transaction ID:\s*)?([A-Za-z0-9]{43,44})/);
       const hash = match ? match[1] : raw;
       resolve(hash);

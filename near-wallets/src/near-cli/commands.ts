@@ -52,7 +52,7 @@ export function buildAddKeyCommand({
 
   parts.push(`use-manually-provided-public-key ${publicKey}`);
   parts.push(`network-config ${network}`);
-  parts.push("sign-with-keychain send");
+  parts.push("sign-with-keychain");
 
   return parts.join(" \\\n    ");
 }
@@ -135,7 +135,7 @@ export function buildTransactionCommand({
       `attached-deposit '${yoctoToNear(fc.deposit)} NEAR'`,
       `sign-as '${shellEscape(signerId)}'`,
       `network-config ${network}`,
-      "sign-with-keychain send",
+      "sign-with-keychain",
     ].join(" \\\n    ");
   }
 
@@ -146,7 +146,7 @@ export function buildTransactionCommand({
       `'${shellEscape(signerId)}'`,
       `send-near '${shellEscape(receiverId)}' '${yoctoToNear(actions[0].params.deposit)} NEAR'`,
       `network-config ${network}`,
-      "sign-with-keychain send",
+      "sign-with-keychain",
     ].join(" \\\n    ");
   }
 
@@ -158,7 +158,7 @@ export function buildTransactionCommand({
     ...actionParts,
     "skip",
     `network-config ${network}`,
-    "sign-with-keychain send",
+    "sign-with-keychain",
   ].join(" \\\n    ");
 }
 
