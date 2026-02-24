@@ -12,7 +12,6 @@ import {
   addKeyCommandHtml,
   transactionCommandHtml,
   signMessageCommandHtml,
-  loadingHtml,
 } from "./view";
 
 interface FunctionCallKey {
@@ -126,41 +125,45 @@ function promptAccountId(opts: {
   });
 }
 
-function promptAddKeyCommand(command: string, step?: string): Promise<void> {
-  return new Promise((resolve) => {
-    const root = renderPage(addKeyCommandHtml(command, step));
-    setupCopyButtons(root);
-    window.selector.ui.showIframe();
-
-    root.querySelector<HTMLButtonElement>("#done-btn")!.addEventListener("click", () => {
-      resolve();
-    });
-  });
+function parseHashInput(raw: string): string {
+  const urlMatch = raw.match(/(?:txns?|transactions)\/([A-Za-z0-9]{43,44})/);
+  if (urlMatch) return urlMatch[1];
+  const match = raw.match(/(?:Transaction ID:\s*)?([A-Za-z0-9]{43,44})/);
+  return match ? match[1] : raw;
 }
 
-function promptTransactionHash(command: string): Promise<string> {
+function promptHashAndVerify(
+  renderHtml: string,
+  rpc: NearRpc,
+  signerId: string,
+): Promise<FinalExecutionOutcome> {
   return new Promise((resolve) => {
-    const root = renderPage(transactionCommandHtml(command));
+    const root = renderPage(renderHtml);
     setupCopyButtons(root);
     window.selector.ui.showIframe();
 
     const input = root.querySelector<HTMLInputElement>("#tx-hash")!;
     const btn = root.querySelector<HTMLButtonElement>("#verify-btn")!;
 
-    const submit = () => {
+    const submit = async () => {
       const raw = input.value.trim();
       if (!raw) {
         showError(root, "Please paste the transaction hash or explorer URL");
         return;
       }
-      const urlMatch = raw.match(/(?:txns?|transactions)\/([A-Za-z0-9]{43,44})/);
-      if (urlMatch) {
-        resolve(urlMatch[1]);
-        return;
+
+      const hash = parseHashInput(raw);
+      btn.disabled = true;
+      btn.textContent = "Verifying...";
+
+      try {
+        const result = await verifyTransaction(rpc, hash, signerId);
+        resolve(result);
+      } catch {
+        showError(root, "Transaction not found. Please check the hash and try again.");
+        btn.disabled = false;
+        btn.textContent = "Verify";
       }
-      const match = raw.match(/(?:Transaction ID:\s*)?([A-Za-z0-9]{43,44})/);
-      const hash = match ? match[1] : raw;
-      resolve(hash);
     };
 
     btn.addEventListener("click", submit);
@@ -211,11 +214,6 @@ function promptSignMessageOutput(command: string, step?: string): Promise<SignMe
       }
     });
   });
-}
-
-function showLoading(message: string): void {
-  renderPage(loadingHtml(message));
-  window.selector.ui.showIframe();
 }
 
 function storedKeyCanSign(receiverId: string, actions: Action[], fcKey: FunctionCallKey | null): boolean {
@@ -292,7 +290,8 @@ class NearCliWallet {
         network,
       });
 
-      await promptAddKeyCommand(command, needsAccountId ? "Step 2 of 2" : undefined);
+      const rpc = getRpc(network);
+      await promptHashAndVerify(addKeyCommandHtml(command, needsAccountId ? "Step 2 of 2" : undefined), rpc, accountId);
 
       const fcKey: FunctionCallKey = {
         privateKey: keyPair.toString(),
@@ -353,7 +352,8 @@ class NearCliWallet {
         network,
       });
 
-      await promptAddKeyCommand(addKeyCmd, `Step ${++currentStep} of ${totalSteps}`);
+      const rpc = getRpc(network);
+      await promptHashAndVerify(addKeyCommandHtml(addKeyCmd, `Step ${++currentStep} of ${totalSteps}`), rpc, accountId);
 
       const fcKey: FunctionCallKey = {
         privateKey: keyPair.toString(),
@@ -422,10 +422,8 @@ class NearCliWallet {
     });
 
     try {
-      const txHash = await promptTransactionHash(command);
-      showLoading("Verifying transaction...");
       const rpc = getRpc(network);
-      return await verifyTransaction(rpc, txHash, accountId);
+      return await promptHashAndVerify(transactionCommandHtml(command), rpc, accountId);
     } finally {
       window.selector.ui.hideIframe();
     }
@@ -465,9 +463,7 @@ class NearCliWallet {
           network: network as Network,
         });
 
-        const txHash = await promptTransactionHash(command);
-        showLoading("Verifying transaction...");
-        const result = await verifyTransaction(rpc, txHash, accountId);
+        const result = await promptHashAndVerify(transactionCommandHtml(command), rpc, accountId);
         results.push(result);
       }
 

@@ -225,11 +225,15 @@ export function addKeyCommandHtml(command: string, step?: string): string {
   return /* html */ `
     <div class="container">
       ${step ? `<div class="step-indicator">${escapeHtml(step)}</div>` : ""}
-      <h2>Execute this command</h2>
-      <p class="subtitle">Run this in your terminal to add an access key, then click the button below</p>
+      <h2>Add access key</h2>
+      <p class="subtitle">Run this command in your terminal, then paste the transaction hash or explorer URL below</p>
       ${commandBlockHtml(command)}
+      <div class="field-group">
+        <label class="field-label">Transaction hash or explorer URL</label>
+        <input type="text" id="tx-hash" placeholder="Paste transaction hash or explorer URL" autocomplete="off" spellcheck="false" />
+      </div>
       <div id="error" class="error-text" style="display:none"></div>
-      <button class="btn" id="done-btn">Done, I've executed the command</button>
+      <button class="btn" id="verify-btn">Verify</button>
     </div>
   `;
 }
