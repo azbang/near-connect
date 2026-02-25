@@ -1,10 +1,9 @@
-import { createTransaction, Transaction } from "@near-js/transactions";
-import { Account, Connection, InMemorySigner } from "near-api-js";
-import { Action, SCHEMA } from "@near-js/transactions";
+import { createTransaction, Transaction, Action, SCHEMA } from "@near-js/transactions";
 import { FinalExecutionOutcome } from "@near-js/types";
 import { KeyPair, PublicKey } from "@near-js/crypto";
 import { baseDecode } from "@near-js/utils";
 import * as borsh from "borsh";
+import { sha256 } from "@noble/hashes/sha256";
 
 import { NearRpc } from "./utils/rpc";
 import { connectorActionsToNearActions, ConnectorAction } from "./utils/action";
@@ -168,30 +167,33 @@ export class MyNearWalletConnector {
     });
   }
 
-  async signAndSendTransactions(transactionsWS: Array<{ actions: Array<Action>; receiverId: string }>): Promise<Array<FinalExecutionOutcome>> {
-    const txs = await Promise.all(transactionsWS.map((t) => this.completeTransaction({ receiverId: t.receiverId, actions: t.actions })));
+  async signAndSendTransactions(transactionsWS: Array<{ actions: Array<Action>; receiverId: string }>, signerId?: string): Promise<Array<FinalExecutionOutcome>> {
+    const accountId = signerId || window.localStorage.getItem("signedAccountId") || this.signedAccountId;
+    const txs = await Promise.all(transactionsWS.map((t) => this.completeTransaction({ signerId: accountId, receiverId: t.receiverId, actions: t.actions })));
     return this.signAndSendTransactionsMNW(txs);
   }
 
-  async signAndSendTransaction({ receiverId, actions }: { receiverId: string; actions: Array<Action> }): Promise<FinalExecutionOutcome> {
+  async signAndSendTransaction({ signerId, receiverId, actions }: { signerId?: string; receiverId: string; actions: Array<Action> }): Promise<FinalExecutionOutcome> {
+    const accountId = signerId || window.localStorage.getItem("signedAccountId") || this.signedAccountId;
     if (actions.length === 1 && this.storedKeyCanSign(receiverId, actions)) {
       try {
-        return this.signUsingKeyPair({ receiverId, actions });
+        return await this.signUsingKeyPair({ signerId: accountId, receiverId, actions });
       } catch (error) {
         // eslint-disable-next-line no-console
         console.warn("Failed to sign using key pair, falling back to wallet", error);
       }
     }
 
-    const tx = await this.completeTransaction({ receiverId, actions });
+    const tx = await this.completeTransaction({ signerId: accountId, receiverId, actions });
     const results = await this.signAndSendTransactionsMNW([tx]);
     return results[0];
   }
 
-  async completeTransaction({ receiverId, actions }: { receiverId: string; actions: Array<Action> }): Promise<Transaction> {
+  async completeTransaction({ signerId, receiverId, actions }: { signerId?: string; receiverId: string; actions: Array<Action> }): Promise<Transaction> {
+    const signedAccountId = signerId || window.localStorage.getItem("signedAccountId") || this.signedAccountId;
     const block = await this.provider.block({ finality: "final" });
     const blockHash = baseDecode(block.header.hash);
-    return createTransaction(this.signedAccountId, KeyPair.fromRandom("ed25519").getPublicKey(), receiverId, 0, actions, blockHash);
+    return createTransaction(signedAccountId, KeyPair.fromRandom("ed25519").getPublicKey(), receiverId, 0, actions, blockHash);
   }
 
   async signAndSendTransactionsMNW(txs: Array<Transaction>): Promise<Array<FinalExecutionOutcome>> {
@@ -213,13 +215,42 @@ export class MyNearWalletConnector {
     }
   }
 
-  async signUsingKeyPair({ receiverId, actions }: { receiverId: string; actions: Array<Action> }): Promise<FinalExecutionOutcome> {
-    // instantiate an account (NEAR API is a nightmare)
+  async signUsingKeyPair({ signerId, receiverId, actions }: { signerId?: string; receiverId: string; actions: Array<Action> }): Promise<FinalExecutionOutcome> {
+    const signedAccountId = signerId || window.localStorage.getItem("signedAccountId") || this.signedAccountId;
     const keyPair = KeyPair.fromString(this.functionCallKey!.privateKey as any);
-    const signer = await InMemorySigner.fromKeyPair(this.network.networkId, this.signedAccountId, keyPair);
-    const connection = new Connection(this.network.networkId, this.provider, signer, "");
-    const account = new Account(connection, this.signedAccountId);
-    return account.signAndSendTransaction({ receiverId, actions });
+
+    // Look up access key nonce from RPC
+    const publicKey = keyPair.getPublicKey();
+    const accessKeyInfo: any = await this.provider.query({
+      request_type: "view_access_key",
+      account_id: signedAccountId,
+      public_key: publicKey.toString(),
+      finality: "optimistic",
+    });
+    const nonce = BigInt(accessKeyInfo.nonce) + 1n;
+
+    // Get recent block hash
+    const block = await this.provider.block({ finality: "final" });
+    const blockHash = baseDecode(block.header.hash);
+
+    // Create transaction using v2.5.1's createTransaction (same version as our SCHEMA)
+    const tx = createTransaction(signedAccountId, publicKey, receiverId, nonce, actions, blockHash);
+
+    // Sign: hash the borsh-serialized transaction, sign with key pair
+    const serializedTx = borsh.serialize(SCHEMA.Transaction, tx);
+    const txHash = sha256(serializedTx);
+    const signature = keyPair.sign(txHash);
+
+    // Submit signed transaction directly via RPC
+    const signedTxBytes = borsh.serialize(SCHEMA.SignedTransaction, {
+      transaction: tx,
+      signature: { ed25519Signature: { data: signature.signature } },
+    });
+
+    return this.provider.sendJsonRpc("send_tx", {
+      signed_tx_base64: Buffer.from(signedTxBytes).toString("base64"),
+      wait_until: "EXECUTED_OPTIMISTIC",
+    });
   }
 
   requestSignTransactionsUrl(txs: Array<Transaction>): string {
@@ -350,18 +381,19 @@ const MyNearWallet = async () => {
       return await wallet[network].signMessage({ message, nonce, recipient, callbackUrl, state: sgnState });
     },
 
-    async signAndSendTransaction({ receiverId, actions, network }: { receiverId: string; actions: Array<ConnectorAction>; network: string }) {
+    async signAndSendTransaction({ signerId, receiverId, actions, network }: { signerId?: string; receiverId: string; actions: Array<ConnectorAction>; network: string }) {
       if (!wallet[network].isSignedIn()) throw new Error("Wallet not signed in");
-      return wallet[network].signAndSendTransaction({ receiverId, actions: connectorActionsToNearActions(actions) });
+      return wallet[network].signAndSendTransaction({ signerId, receiverId, actions: connectorActionsToNearActions(actions) });
     },
 
-    async signAndSendTransactions({ transactions, network }: { transactions: { receiverId: string; actions: ConnectorAction[] }[]; network: string }) {
+    async signAndSendTransactions({ signerId, transactions, network }: { signerId?: string; transactions: { receiverId: string; actions: ConnectorAction[] }[]; network: string }) {
       if (!wallet[network].isSignedIn()) throw new Error("Wallet not signed in");
       return wallet[network].signAndSendTransactions(
         transactions.map((t) => ({
           actions: connectorActionsToNearActions(t.actions),
           receiverId: t.receiverId,
-        }))
+        })),
+        signerId,
       );
     },
   };

@@ -306,6 +306,11 @@ class SandboxExecutor {
   }
 
   async call<T>(method: string, params: any): Promise<T> {
+    // Inject signerId into storage so wallet executors find it in sandboxedLocalStorage
+    if (params?.signerId) {
+      localStorage.setItem(`${this.storageSpace}:signedAccountId`, params.signerId);
+    }
+
     this.connector.logger?.log(`Add to queue`, method, params);
 
     // return this.queue.enqueue(async () => {

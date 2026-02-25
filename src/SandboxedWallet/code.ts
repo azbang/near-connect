@@ -310,6 +310,11 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
         }
         
         try {
+          // Ensure signerId is available in sandboxedLocalStorage for wallet code that reads it
+          if (event.data.params?.signerId) {
+            window.sandboxedLocalStorage.setItem("signedAccountId", event.data.params.signerId);
+          }
+
           const result = await wallet[method](event.data.params);
           window.parent.postMessage({ ...payload, status: "success", result }, "*");
         } catch (error) {
