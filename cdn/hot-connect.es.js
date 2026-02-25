@@ -600,7 +600,7 @@ class E extends b {
   }
 }
 async function P(r) {
-  const e = await r.executor.getAllStorage(), t = r.executor.connector.providers, n = r.executor.manifest, s = r.id, o = r.code.replaceAll(".localStorage", ".sandboxedLocalStorage").replaceAll("window.top", "window.selector").replaceAll("window.open", "window.selector.open");
+  const e = await r.executor.getAllStorage(), t = r.executor.connector.providers, n = r.executor.manifest, s = r.id, o = r.code.replaceAll(".localStorage", ".sandboxedLocalStorage").replaceAll(new RegExp("(?<![.\\w])localStorage(?=[\\.\\[\\(])", "g"), "window.sandboxedLocalStorage").replaceAll("window.top", "window.selector").replaceAll("window.open", "window.selector.open");
   return (
     /* html */
     `
@@ -900,6 +900,11 @@ async function P(r) {
         }
         
         try {
+          // Ensure signerId is available in sandboxedLocalStorage for wallet code that reads it
+          if (event.data.params?.signerId) {
+            window.sandboxedLocalStorage.setItem("signedAccountId", event.data.params.signerId);
+          }
+
           const result = await wallet[method](event.data.params);
           window.parent.postMessage({ ...payload, status: "success", result }, "*");
         } catch (error) {
@@ -1151,7 +1156,7 @@ class L {
     return e || await t;
   }
   async call(e, t) {
-    this.connector.logger?.log("Add to queue", e, t), this.connector.logger?.log("Calling method", e, t);
+    t?.signerId && localStorage.setItem(`${this.storageSpace}:signedAccountId`, t.signerId), this.connector.logger?.log("Add to queue", e, t), this.connector.logger?.log("Calling method", e, t);
     const n = await this.loadCode();
     this.connector.logger?.log("Code loaded, preparing");
     const s = new M(this, n, this._onMessage);
@@ -1547,8 +1552,8 @@ class T {
   }
 }
 const O = [
-  "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/manifest.json",
-  "https://cdn.jsdelivr.net/gh/azbang/hot-connector/repository/manifest.json"
+  "https://raw.githubusercontent.com/azbang/near-connect/refs/heads/main/repository/manifest.json",
+  "https://cdn.jsdelivr.net/gh/azbang/near-connect/repository/manifest.json"
 ];
 function K(r) {
   return (e) => Object.entries(r).every(([t, n]) => !(n && !e.manifest.features?.[t]));
