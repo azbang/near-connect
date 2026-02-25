@@ -46,7 +46,7 @@
       "description": "Web wallet for NEAR.",
       "website": "https://mynearwallet.com",
       "version": "1.0.0",
-      "executor": "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/mnw.js",
+      "executor": "https://raw.githubusercontent.com/fastnear/near-connect/refs/heads/main/repository/mnw.js",
       "type": "sandbox",
 
       "platform": {
