@@ -82,19 +82,30 @@ export const ExampleNEAR: FC = () => {
           connector.switchNetwork(network);
         }}
       />
-      <button className={"input-button"} onClick={() => connect()}>
+      <button className={"input-button"} onClick={() => { connector.signInData = undefined; connect(); }}>
         {networkAccount != null ? `${networkAccount.id} (logout)` : "Connect"}
       </button>
       {networkAccount == null && (
-        <button
-          className={"input-button"}
-          onClick={() => {
-            const nonce = new Uint8Array(window.crypto.getRandomValues(new Uint8Array(32)));
-            connect({ signMessageParams: { message: "Sign in to Example App", recipient: "Demo app", nonce } });
-          }}
-        >
-          Connect (With Signed Message)
-        </button>
+        <>
+          <button
+            className={"input-button"}
+            onClick={() => {
+              const nonce = new Uint8Array(window.crypto.getRandomValues(new Uint8Array(32)));
+              connect({ signMessageParams: { message: "Sign in to Example App", recipient: "Demo app", nonce } });
+            }}
+          >
+            Connect (With Signed Message)
+          </button>
+          <button
+            className={"input-button"}
+            onClick={() => {
+              connector.signInData = { contractId: "social.near", methodNames: ["set"] };
+              connect();
+            }}
+          >
+            Connect (With Add Key)
+          </button>
+        </>
       )}
 
       {networkAccount != null && <WalletActions wallet={wallet!} network={network} />}

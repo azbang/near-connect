@@ -11,3 +11,4 @@ Avaiable wallets in manifest:
 - intear-wallet
 - nightly-wallet
 - unity-wallet
+- near-cli
