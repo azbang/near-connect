@@ -2,7 +2,9 @@
 
 ![ezgif-26d74832f88c3c](https://github.com/user-attachments/assets/c4422057-38bb-4cd9-8bd0-568e29f46280)
 
-Zero-dependenices, robust, secure and lightweight wallet connector for the NEAR blockchain with **easily updatable** wallets code
+This is a FastNear fork of the MIT licensed https://github.com/azbang/near-connect that makes modifications such that a function-call access key can reside in local storage and not prompt the end user to sign each time. Every transaction that contains a non-zero deposit still triggers the wallet confirmation.
+
+Zero-dependency, robust, secure and lightweight wallet connector for the NEAR blockchain with **easily updatable** wallets code
 
 `yarn add @hot-labs/near-connect`
 
@@ -237,6 +239,24 @@ In fact, main target for audit is `src/wallets/near-wallets/SandboxedWallet/*`.
 Additional:
 Auditing `src/helpers` will help assess the correctness of the coding algorithms.
 Auditing `src/popups` will help assess the correctness of interaction with the DOM, the presence of potential XSS attacks.
+
+## Publishing
+
+To publish a new version of `@fastnear/near-connect`:
+
+1. Build the library:
+   ```sh
+   yarn build
+   ```
+
+2. Bump the version in the root `package.json`.
+
+3. Publish to npm:
+   ```sh
+   npm publish --access public --otp <code>
+   ```
+
+> **Note:** The `near-wallets/` package is not published separately. Its build output (wallet executor scripts) lives in `./repository/` and is referenced by the manifest.
 
 ## Contributions
 
