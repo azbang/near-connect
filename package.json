@@ -20,7 +20,8 @@
   "scripts": {
     "example": "cd example && yarn && yarn start",
     "build:wallets": "cd near-wallets && yarn build:wallets",
-    "build": "rm -rf build && yarn tsc",
+    "build": "rm -rf build && node build-scripts/updateNearConnectVersionInCode.js && yarn tsc",
+    "prepublish": "yarn build",
     "cdn": "vite build",
     "type-check": "tsc --noEmit"
   },
