@@ -1,5 +1,5 @@
 import type { FinalExecutionOutcome } from "@near-js/types";
-import type { Action, SignedDelegate } from "@near-js/transactions";
+import type { Action, DelegateAction, SignedDelegate } from "@near-js/transactions";
 import type { ConnectorAction } from "../actions/types";
 
 export type { FinalExecutionOutcome, Action };
@@ -85,6 +85,21 @@ export interface SignDelegateActionsParams {
   }>;
 }
 
+export interface DataAndKeyType {
+  // Base64 encoded data bytes
+  dataBase64: string;
+  keyType: "ed25519" | "secp256k1";
+}
+
+export type SignDelegateActionResult = {
+  delegateAction: DelegateAction;
+  signature: DataAndKeyType;
+};
+
+export interface SignDelegateActionsResponse {
+  signedDelegateActions: SignDelegateActionResult[];
+}
+
 export interface WalletManifest {
   id: string;
   platform: string[];
@@ -110,15 +125,6 @@ export interface WalletFeatures {
   signDelegateActions: boolean;
   mainnet: boolean;
   testnet: boolean;
-}
-
-export type SignDelegateActionResult = {
-  delegateHash: Uint8Array;
-  signedDelegate: SignedDelegate;
-};
-
-export interface SignDelegateActionsResponse {
-  signedDelegateActions: SignDelegateActionResult[];
 }
 
 export interface SignInParams {
