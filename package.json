@@ -19,9 +19,11 @@
   ],
   "scripts": {
     "example": "cd example && yarn && yarn start",
+    "pre-build": "node build-scripts/updateNearConnectVersionInCode.js",
     "build:wallets": "cd near-wallets && yarn build:wallets",
-    "build": "rm -rf build && yarn tsc",
-    "cdn": "vite build",
+    "build": "rm -rf build && yarn pre-build && yarn tsc",
+    "prepublish": "yarn build",
+    "cdn": "yarn pre-build && vite build",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {

@@ -1,3 +1,4 @@
+import { NEAR_CONNECT_VERSION } from "../near_connect_static";
 import SandboxExecutor from "./executor";
 
 async function getIframeCode(args: { id: string; executor: SandboxExecutor; code: string }) {
@@ -179,6 +180,7 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
       window.selector = {
         wallet: null,
         location: "${window.location.href}",
+        nearConnectVersion: "${NEAR_CONNECT_VERSION}",
         
         outerHeight: ${window.outerHeight},
         screenY: ${window.screenY},
