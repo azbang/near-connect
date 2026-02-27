@@ -11,6 +11,7 @@ import {
   SignDelegateActionsResponse,
   type AccountWithSignedMessage,
   type SignInAndSignMessageParams,
+  type SignInParams,
 } from "../types";
 import { NearConnector } from "../NearConnector";
 import { nearActionsToConnectorActions } from "../actions";
@@ -19,41 +20,42 @@ import SandboxExecutor from "./executor";
 export class SandboxWallet {
   executor: SandboxExecutor;
 
-  constructor(readonly connector: NearConnector, readonly manifest: WalletManifest) {
+  constructor(
+    readonly connector: NearConnector,
+    readonly manifest: WalletManifest,
+  ) {
     this.executor = new SandboxExecutor(connector, manifest);
   }
 
-  async signIn(data?: { network?: Network; contractId?: string; methodNames?: Array<string> }): Promise<Array<Account>> {
+  async signIn(data?: SignInParams): Promise<Array<Account>> {
     return this.executor.call("wallet:signIn", {
-      network: data?.network || this.connector.network,
-      contractId: data?.contractId,
-      methodNames: data?.methodNames,
+      network: data?.network ?? this.connector.network,
+      functionCallAccessKey: data?.functionCallAccessKey,
     });
   }
 
   async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<Array<AccountWithSignedMessage>> {
     return this.executor.call("wallet:signInAndSignMessage", {
-      network: data?.network || this.connector.network,
-      contractId: data?.contractId,
-      methodNames: data?.methodNames,
+      network: data?.network ?? this.connector.network,
+      functionCallAccessKey: data?.functionCallAccessKey,
       messageParams: data.messageParams,
     });
   }
 
   async signOut(data?: { network?: Network }): Promise<void> {
-    const args = { ...data, network: data?.network || this.connector.network };
+    const args = { ...data, network: data?.network ?? this.connector.network };
     await this.executor.call("wallet:signOut", args);
     await this.executor.clearStorage();
   }
 
   async getAccounts(data?: { network?: Network }): Promise<Array<Account>> {
-    const args = { ...data, network: data?.network || this.connector.network };
+    const args = { ...data, network: data?.network ?? this.connector.network };
     return this.executor.call("wallet:getAccounts", args);
   }
 
   async signAndSendTransaction(params: SignAndSendTransactionParams): Promise<FinalExecutionOutcome> {
     const actions = nearActionsToConnectorActions(params.actions);
-    const args = { ...params, actions, network: params.network || this.connector.network };
+    const args = { ...params, actions, network: params.network ?? this.connector.network };
     return this.executor.call("wallet:signAndSendTransaction", args);
   }
 
@@ -63,12 +65,12 @@ export class SandboxWallet {
       receiverId: transaction.receiverId,
     }));
 
-    const args = { ...params, transactions, network: params.network || this.connector.network };
+    const args = { ...params, transactions, network: params.network ?? this.connector.network };
     return this.executor.call("wallet:signAndSendTransactions", args);
   }
 
   async signMessage(params: SignMessageParams): Promise<SignedMessage> {
-    const args = { ...params, network: params.network || this.connector.network };
+    const args = { ...params, network: params.network ?? this.connector.network };
     return this.executor.call("wallet:signMessage", args);
   }
 
@@ -79,7 +81,7 @@ export class SandboxWallet {
         ...delegateAction,
         actions: nearActionsToConnectorActions(delegateAction.actions),
       })),
-      network: params.network || this.connector.network,
+      network: params.network ?? this.connector.network,
     };
     return this.executor.call("wallet:signDelegateActions", args);
   }

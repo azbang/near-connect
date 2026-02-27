@@ -13,6 +13,7 @@
   "dependencies": {
     "@hot-labs/near-connect": "^0.8.1",
     "@near-js/utils": "^2.2.4",
+    "@near-js/crypto": "^2.2.4",
     "@walletconnect/sign-client": "^2.23.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
