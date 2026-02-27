@@ -12,6 +12,17 @@ export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 export type Network = "mainnet" | "testnet";
 
+export type NearKeyType = "ed25519" | "secp256k1";
+
+export type NearPrefixedKey = `${NearKeyType}:${string}`;
+
+export interface FunctionCallAccessKeyParams {
+  accountId: string;
+  /** Using format "<key_type>:<base58_public_key>" e.g. "ed25519:3N5QmbhVqLh9ZtZs1zj8X9v1u1Z1Z1Z1Z1Z1Z1Z1Z1Z" */
+  publicKey: NearPrefixedKey;
+  methods?: string[];
+}
+
 export interface NearConnector_ConnectOptions {
   walletId?: string;
   /**
@@ -23,6 +34,7 @@ export interface NearConnector_ConnectOptions {
    * This is useful for cases where you want to verify ownership of the account during sign in without any additional steps.
    */
   signMessageParams?: SignMessageDuringSignInParams;
+  functionCallAccessKey?: FunctionCallAccessKeyParams;
 }
 
 export interface Account {
@@ -107,6 +119,7 @@ export interface WalletFeatures {
   signAndSendTransactions: boolean;
   signInWithoutAddKey: boolean;
   signInAndSignMessage: boolean;
+  signInWithFunctionCallAccessKey: boolean;
   signDelegateActions: boolean;
   mainnet: boolean;
   testnet: boolean;
@@ -123,8 +136,7 @@ export interface SignDelegateActionsResponse {
 
 export interface SignInParams {
   network?: Network;
-  contractId?: string;
-  methodNames?: Array<string>;
+  functionCallAccessKey?: FunctionCallAccessKeyParams;
 }
 
 export interface SignInAndSignMessageParams extends SignInParams {

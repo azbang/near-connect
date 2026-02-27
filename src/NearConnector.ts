@@ -58,8 +58,7 @@ const defaultManifests = [
 function createFilterForWalletFeatures(features: Partial<WalletFeatures>) {
   return (wallet: NearWalletBase) => {
     return Object.entries(features).every(([key, value]) => {
-      if (value && !wallet.manifest.features?.[key as keyof WalletFeatures]) return false;
-      return true;
+      return value != null && wallet.manifest.features?.[key as keyof WalletFeatures] === true;
     });
   };
 }
@@ -76,7 +75,6 @@ export class NearConnector {
   network: Network = "mainnet";
 
   providers: { mainnet?: string[]; testnet?: string[] } = { mainnet: [], testnet: [] };
-  signInData?: { contractId?: string; methodNames?: Array<string> };
   walletConnect?: Promise<AbstractWalletConnect> | AbstractWalletConnect;
 
   footerBranding: FooterBranding | null;
@@ -100,8 +98,6 @@ export class NearConnector {
     this.excludedWallets = options?.excludedWallets ?? [];
 
     this.features = options?.features ?? {};
-
-    this.signInData = options?.signIn;
 
     if (options?.footerBranding !== undefined) {
       this.footerBranding = options?.footerBranding;
@@ -197,12 +193,11 @@ export class NearConnector {
     throw new Error("Failed to load manifest");
   }
 
-  async switchNetwork(network: "mainnet" | "testnet", signInData?: { contractId?: string; methodNames?: Array<string> }) {
+  async switchNetwork(network: "mainnet" | "testnet", connectOptions?: NearConnector_ConnectOptions) {
     if (this.network === network) return;
     await this.disconnect().catch(() => {});
-    if (signInData) this.signInData = signInData;
     this.network = network;
-    await this.connect();
+    await this.connect(connectOptions);
   }
 
   async registerWallet(manifest: WalletManifest) {
@@ -262,7 +257,15 @@ export class NearConnector {
     const signMessageParams = input.signMessageParams;
 
     await this.whenManifestLoaded.catch(() => {});
-    if (!walletId) walletId = await this.selectWallet(input.signMessageParams != null ? { features: { signInAndSignMessage: true } } : undefined);
+
+    if (!walletId) {
+      walletId = await this.selectWallet({
+        features: {
+          signInAndSignMessage: input.signMessageParams != null ? true : undefined,
+          signInWithFunctionCallAccessKey: input.functionCallAccessKey != null ? true : undefined,
+        },
+      });
+    }
 
     try {
       const wallet = await this.wallet(walletId);
@@ -273,8 +276,7 @@ export class NearConnector {
 
       if (signMessageParams != null) {
         const accounts = await wallet.signInAndSignMessage({
-          contractId: this.signInData?.contractId,
-          methodNames: this.signInData?.methodNames,
+          functionCallAccessKey: input.functionCallAccessKey,
           messageParams: signMessageParams,
           network: this.network,
         });
@@ -294,8 +296,7 @@ export class NearConnector {
         });
       } else {
         const accounts = await wallet.signIn({
-          contractId: this.signInData?.contractId,
-          methodNames: this.signInData?.methodNames,
+          functionCallAccessKey: input.functionCallAccessKey,
           network: this.network,
         });
 
