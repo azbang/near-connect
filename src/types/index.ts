@@ -85,19 +85,9 @@ export interface SignDelegateActionsParams {
   }>;
 }
 
-export interface DataAndKeyType {
-  // Base64 encoded data bytes
-  dataBase64: string;
-  keyType: "ed25519" | "secp256k1";
-}
-
-export type SignDelegateActionResult = {
-  delegateAction: DelegateAction;
-  signature: DataAndKeyType;
-};
-
 export interface SignDelegateActionsResponse {
-  signedDelegateActions: SignDelegateActionResult[];
+  // Borsh-serialized base64 strings of "SignedDelegate"
+  signedDelegateActions: string[];
 }
 
 export interface WalletManifest {

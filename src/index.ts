@@ -17,8 +17,7 @@ export type {
   SignedMessage,
   SignAndSendTransactionParams,
   SignAndSendTransactionsParams,
-  SignDelegateActionsParams as SignDelegateActionParams,
-  SignDelegateActionResult,
+  SignDelegateActionsParams,
   SignInAndSignMessageParams,
   AccountWithSignedMessage,
 } from "./types";
