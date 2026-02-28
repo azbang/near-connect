@@ -11,7 +11,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@hot-labs/near-connect": "^0.8.1",
+    "@fastnear/near-connect": "^0.10.2",
     "@near-js/utils": "^2.2.4",
     "@walletconnect/sign-client": "^2.23.1",
     "react": "^18.3.1",

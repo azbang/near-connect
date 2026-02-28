@@ -20,7 +20,7 @@ export default defineConfig({
   base: "/near-connect/",
 
   resolve: {
-    alias: useLocalKit ? { "@hot-labs/near-connect": kitLocalPath } : {},
+    alias: useLocalKit ? { "@fastnear/near-connect": kitLocalPath } : {},
   },
   optimizeDeps: {
     esbuildOptions: {

@@ -1,5 +1,5 @@
 import { FC, useMemo, useState } from "react";
-import { NearConnector, NearWalletBase } from "@hot-labs/near-connect";
+import { NearConnector, NearWalletBase } from "@fastnear/near-connect";
 import SignClient from "@walletconnect/sign-client";
 
 import { NetworkSelector } from "./form-component/NetworkSelector.tsx";
