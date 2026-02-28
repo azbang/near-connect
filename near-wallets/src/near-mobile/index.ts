@@ -1,13 +1,11 @@
-import { NearMobileWallet } from "@peersyst/near-mobile-signer/dist/src/wallet/NearMobileWallet";
-import { RepositoryErrorCodes } from "@peersyst/near-mobile-signer/src/data-access/errors/index";
-import { Network, SessionState } from "@peersyst/near-mobile-signer/src/common/models";
-import { NearMobileStrategy } from "@peersyst/near-mobile-signer/dist/src/wallet/NearMobileWallet.types";
-import config from "@peersyst/near-mobile-signer/dist/src/common/config/config";
+import { createNearMobileAdapter } from "@fastnear/wallet-adapter";
 import QRCodeStyling from "qr-code-styling";
-import { KeyPair } from "@near-js/crypto";
 
 import { nearMobileFrame, nearMobileFrameHead } from "./view";
-import { ConnectorAction } from "../utils/action";
+import type { ConnectorAction } from "../utils/action";
+
+const NEAR_MOBILE_SIGNER_BACKEND = "https://near-mobile-signer-backend_production.peersyst.tech";
+const NEAR_MOBILE_WALLET_URL = "near-mobile-wallet://sign";
 
 const isMobile = function () {
   let check = false;
@@ -54,175 +52,120 @@ async function setQRCode({ requestUrl }: { requestUrl: string }) {
     const id = urlParts[urlParts.length - 1];
     const type = urlParts[urlParts.length - 2];
 
-    approveButton!.style.display = "flex";
-    approveButton!.onclick = () => {
-      window.selector.open(`https://near-mobile-signer-backend.peersyst.tech/api/deep-link?uuid=${id}&type=${type}`);
+    approveButton.style.display = "flex";
+    approveButton.onclick = () => {
+      window.selector.open(`${NEAR_MOBILE_SIGNER_BACKEND}/api/deep-link?uuid=${id}&type=${type}`);
     };
   }
 }
 
-export class WidgetStrategy implements NearMobileStrategy {
-  constructor() {}
-
-  onRequested(id: string, request: any, onClose?: () => Promise<void>): void {
-    const requestType = "message" in request ? "message" : "request";
-    const requestUrl = `${config.nearMobileWalletUrl}/${requestType}/${id}`;
+const nearMobile = createNearMobileAdapter({
+  signerBackendUrl: NEAR_MOBILE_SIGNER_BACKEND,
+  nearMobileWalletUrl: NEAR_MOBILE_WALLET_URL,
+  storage: {
+    get: (key) => window.selector.storage.get(key),
+    set: (key, value) => window.selector.storage.set(key, value),
+    remove: (key) => window.selector.storage.remove(key),
+  },
+  getNetworkProviders: (network) => {
+    const providers = window.selector?.providers?.[network];
+    if (providers && providers.length > 0) return providers;
+    return [network === "mainnet" ? "https://rpc.mainnet.near.org" : "https://rpc.testnet.near.org"];
+  },
+  onRequested: ({ requestUrl }) => {
     setQRCode({ requestUrl });
-  }
-}
+  },
+});
 
-export class SessionRepository {
-  constructor() {
-    this.loadSessionState();
-  }
-
-  async get() {
-    try {
-      const sessionData = await window.selector.storage.get("session");
-      if (!sessionData)
-        return {
-          mainnet: { activeAccount: null, accounts: {} },
-          testnet: { activeAccount: null, accounts: {} },
-        };
-
-      return JSON.parse(sessionData);
-    } catch {
-      return {
-        mainnet: { activeAccount: null, accounts: {} },
-        testnet: { activeAccount: null, accounts: {} },
-      };
-    }
-  }
-
-  async set(session: SessionState) {
-    await window.selector.storage.set("session", JSON.stringify(session));
-  }
-
-  async clear() {
-    await window.selector.storage.remove("session");
-  }
-
-  private async loadSessionState(): Promise<void> {
-    const currentSessionState = await this.get();
-    if (!currentSessionState)
-      await this.set({
-        mainnet: { activeAccount: null, accounts: {} },
-        testnet: { activeAccount: null, accounts: {} },
-      });
-  }
-
-  async getKey(network: Network, accountId: string): Promise<KeyPair> {
-    const sessionState = await this.get();
-    const privateKey = sessionState[network]?.accounts[accountId];
-    if (!privateKey) throw new Error(RepositoryErrorCodes.ACCOUNT_KEY_NOT_FOUND);
-    return KeyPair.fromString(privateKey);
-  }
-
-  async setKey(network: Network, accountId: string, accessKey: KeyPair): Promise<void> {
-    const sessionState = await this.get();
-
-    sessionState[network].accounts[accountId] = accessKey.toString();
-    await this.set(sessionState);
-  }
-
-  async removeKey(network: Network, accountId: string): Promise<void> {
-    const sessionState = await this.get();
-    if (sessionState[network].activeAccount === accountId) sessionState[network].activeAccount = null;
-    delete sessionState[network].accounts[accountId];
-    await this.set(sessionState);
-  }
-
-  async getActiveAccount(network: Network): Promise<string> {
-    const sessionState = await this.get();
-    return sessionState[network].activeAccount;
-  }
-
-  async setActiveAccount(network: Network, accountId: string): Promise<void> {
-    const sessionState = await this.get();
-    const accountExists = Object.keys(sessionState[network].accounts).includes(accountId);
-    if (!accountExists) throw new Error(RepositoryErrorCodes.INVALID_ACCOUNT_ID);
-    sessionState[network].activeAccount = accountId;
-    await this.set(sessionState);
-  }
-
-  async getAccounts(network: Network): Promise<string[]> {
-    const sessionState = await this.get();
-    const accounts = sessionState[network].accounts;
-    return Object.keys(accounts);
-  }
-
-  async getNetworks(): Promise<string[]> {
-    const sessionState = await this.get();
-    return Object.keys(sessionState);
-  }
-}
-
-export const initNearMobileWallet = async () => {
-  const wallet = {
-    mainnet: new NearMobileWallet({ network: "mainnet", sessionRepository: new SessionRepository() as any }),
-    testnet: new NearMobileWallet({ network: "testnet", sessionRepository: new SessionRepository() as any }),
-  };
-
-  // @ts-ignore
-  wallet.mainnet.defaultStrategy = new WidgetStrategy();
-  // @ts-ignore
-  wallet.testnet.defaultStrategy = new WidgetStrategy();
-
-  async function getAccounts(network: Network) {
-    const accountIds = await wallet[network].getAccounts();
-    const accounts: { accountId: string; publicKey: string }[] = [];
-
-    for (let i = 0; i < accountIds.length; i++) {
-      const publicKey = await wallet[network].signer.getPublicKey(accountIds[i], network);
-      accounts.push({ accountId: accountIds[i], publicKey: publicKey.toString() });
-    }
-
-    return accounts;
-  }
-
+const NearMobileWallet = async () => {
   return {
-    async signIn(data: { network: Network; contractId?: string; methodNames?: Array<string> }) {
+    async signIn(data: { network: "mainnet" | "testnet"; contractId?: string; methodNames?: Array<string>; allowance?: string }) {
       window.selector.ui.showIframe();
-      await wallet[data.network].signIn({ contractId: data.contractId, methodNames: data.methodNames });
-      return await getAccounts(data.network);
+      return nearMobile.signIn(data);
     },
 
-    async signOut({ network }: { network: Network }) {
+    async signOut({ network }: { network: "mainnet" | "testnet" }) {
       window.selector.ui.showIframe();
-      await wallet[network].signOut();
+      await nearMobile.signOut({ network });
     },
 
-    async getAccounts({ network }: { network: Network }) {
-      return getAccounts(network);
+    async getAccounts({ network }: { network: "mainnet" | "testnet" }) {
+      return nearMobile.getAccounts({ network });
     },
 
-    async signAndSendTransaction(data: { network: Network; receiverId: string; actions: ConnectorAction[] }) {
+    async signAndSendTransaction({
+      network,
+      signerId,
+      receiverId,
+      actions,
+    }: {
+      network: "mainnet" | "testnet";
+      signerId?: string;
+      receiverId: string;
+      actions: ConnectorAction[];
+    }) {
       window.selector.ui.showIframe();
-      return await wallet[data.network].signAndSendTransaction({ actions: data.actions as any, receiverId: data.receiverId });
+      return nearMobile.signAndSendTransaction({ network, signerId, receiverId, actions });
     },
 
     async verifyOwner() {
       throw Error("[NearMobileWallet]: verifyOwner is deprecated, use signMessage method with implementation NEP0413 Standard");
     },
 
-    async signMessage(data: { network: Network; recipient: string; message: string; nonce: number[] }) {
+    async signMessage({
+      network,
+      recipient,
+      message,
+      nonce,
+      callbackUrl,
+      state,
+      accountId,
+    }: {
+      network: "mainnet" | "testnet";
+      recipient: string;
+      message: string;
+      nonce: number[];
+      callbackUrl?: string;
+      state?: string;
+      accountId?: string;
+    }) {
       window.selector.ui.showIframe();
-      const { recipient, nonce, ...rest } = data;
-      const result = await wallet[data.network].signMessage({ ...rest, receiver: recipient, nonce: Array.from(nonce) });
+      const result = await nearMobile.signMessage({
+        network,
+        recipient,
+        message,
+        nonce: Array.from(nonce),
+        callbackUrl,
+        state,
+        accountId,
+      });
+
       return {
         accountId: result.accountId,
-        signature: result.signature.toString(),
-        publicKey: result.publicKey.toString(),
+        signature: result.signature,
+        publicKey: result.publicKey,
       };
     },
 
-    async signAndSendTransactions(data: { network: Network; transactions: { receiverId: string; actions: ConnectorAction[] }[] }) {
+    async signAndSendTransactions({
+      network,
+      signerId,
+      transactions,
+    }: {
+      network: "mainnet" | "testnet";
+      signerId?: string;
+      transactions: { receiverId: string; actions: ConnectorAction[] }[];
+    }) {
       window.selector.ui.showIframe();
-      return await wallet[data.network].signAndSendTransactions({ transactions: data.transactions as any });
+      return nearMobile.signAndSendTransactions({
+        network,
+        signerId,
+        transactions,
+      });
     },
   };
 };
 
-initNearMobileWallet().then((wallet) => {
+NearMobileWallet().then((wallet) => {
   window.selector.ready(wallet);
 });

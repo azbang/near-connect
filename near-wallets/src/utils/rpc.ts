@@ -1,8 +1,22 @@
-import { JsonRpcProvider } from "@near-js/providers";
-import { getErrorTypeFromErrorMessage, parseRpcError } from "@near-js/utils";
-import { TypedError } from "@near-js/types";
+// Inline base64 encoder to avoid pulling @fastnear/utils (and js-base64) into all executors
+const _bytesToBase64 = (bytes: Uint8Array): string => {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+};
+
+// Inline JSON-to-base64 for viewMethod args (replaces Buffer.from(str, "utf8").toString("base64"))
+const _stringToBase64 = (str: string): string => _bytesToBase64(new TextEncoder().encode(str));
 
 let _nextId = 123;
+
+class RpcError extends Error {
+  type: string;
+  constructor(message: string, type: string) {
+    super(message);
+    this.type = type;
+  }
+}
 
 class NetworkError extends Error {
   constructor(status: number, title: string, message: string) {
@@ -28,20 +42,36 @@ export const rpcProviders = [
   c1 ? "https://c2.rpc.fastnear.com" : "https://c1.rpc.fastnear.com",
 ];
 
-export class NearRpc extends JsonRpcProvider {
+export class NearRpc {
   public providers: string[];
   public currentProviderIndex = 0;
   public startTimeout;
 
   constructor(providers = rpcProviders, private timeout = 30_000, private triesCountForEveryProvider = 3, private incrementTimout = true) {
-    super({ url: "" });
     this.currentProviderIndex = 0;
     this.providers = providers.length > 0 ? providers : rpcProviders;
     this.startTimeout = timeout;
   }
 
+  async block(params: { finality: string }): Promise<any> {
+    return this.sendJsonRpc("block", params);
+  }
+
+  async query<T = any>(params: Record<string, any>): Promise<T> {
+    return this.sendJsonRpc("query", params);
+  }
+
+  async txStatus(txHash: string, accountId: string, waitUntil?: string): Promise<any> {
+    return this.sendJsonRpc("tx", { tx_hash: txHash, sender_account_id: accountId, wait_until: waitUntil });
+  }
+
+  async sendTransaction(signedTransaction: { encode(): Uint8Array }): Promise<any> {
+    const bytes = signedTransaction.encode();
+    return this.sendJsonRpc("send_tx", { signed_tx_base64: _bytesToBase64(new Uint8Array(bytes)), wait_until: "EXECUTED_OPTIMISTIC" });
+  }
+
   async viewMethod(args: { contractId: string; methodName: string; args: any }) {
-    const payload = Buffer.from(JSON.stringify(args.args), "utf8").toString("base64");
+    const payload = _stringToBase64(JSON.stringify(args.args));
     const data: any = await this.query({
       args_base64: payload,
       finality: "optimistic",
@@ -50,7 +80,7 @@ export class NearRpc extends JsonRpcProvider {
       account_id: args.contractId,
     });
 
-    return JSON.parse(Buffer.from(data.result).toString("utf8"));
+    return JSON.parse(new TextDecoder().decode(new Uint8Array(data.result)));
   }
 
   async sendJsonRpc<T>(method: string, params: any, attempts = 0): Promise<T> {
@@ -120,9 +150,9 @@ export class NearRpc extends JsonRpcProvider {
       if (typeof response.error.data === "object") {
         const isReadable = typeof response.error.data.error_message === "string" && typeof response.error.data.error_type === "string";
         if (isReadable) {
-          throw new TypedError(response.error.data.error_message, response.error.data.error_type);
+          throw new RpcError(response.error.data.error_message, response.error.data.error_type);
         }
-        throw parseRpcError(response.error.data);
+        throw new RpcError(JSON.stringify(response.error.data), "ServerError");
       }
 
       // NOTE: All this hackery is happening because structured errors not implemented
@@ -131,10 +161,9 @@ export class NearRpc extends JsonRpcProvider {
       const isTimeout = response.error.data === "Timeout" || errorMessage.includes("Timeout error") || errorMessage.includes("query has timed out");
 
       if (isTimeout) {
-        throw new TypedError(errorMessage, "TimeoutError");
+        throw new RpcError(errorMessage, "TimeoutError");
       }
-      const type = getErrorTypeFromErrorMessage(response.error.data, response.error.name);
-      throw new TypedError(errorMessage, type);
+      throw new RpcError(errorMessage, response.error.name || "UntypedError");
     }
 
     return response.result;

@@ -1,12 +1,13 @@
-import { createTransaction, Transaction, Action, SCHEMA } from "@near-js/transactions";
-import { FinalExecutionOutcome } from "@near-js/types";
-import { KeyPair, PublicKey } from "@near-js/crypto";
-import { baseDecode } from "@near-js/utils";
-import * as borsh from "borsh";
-import { sha256 } from "@noble/hashes/sha256";
+import { serialize as borshSerialize } from "borsh";
+import {
+  privateKeyFromRandom, publicKeyFromPrivate, signHash, sha256,
+  bytesToBase64, mapTransaction, SCHEMA,
+} from "@fastnear/utils";
+import type { PlainTransaction } from "@fastnear/utils";
 
 import { NearRpc } from "./utils/rpc";
-import { connectorActionsToNearActions, ConnectorAction } from "./utils/action";
+import { connectorActionsToFastnearActions } from "./utils/action";
+import type { ConnectorAction } from "./utils/action";
 
 const DEFAULT_POPUP_WIDTH = 480;
 const DEFAULT_POPUP_HEIGHT = 640;
@@ -83,8 +84,8 @@ export class MyNearWalletConnector {
     return this.signedAccountId;
   }
 
-  getPublicKey(): PublicKey | undefined {
-    if (this.functionCallKey) return KeyPair.fromString(this.functionCallKey.privateKey as any).getPublicKey();
+  getPublicKey(): string | undefined {
+    if (this.functionCallKey) return publicKeyFromPrivate(this.functionCallKey.privateKey);
     return undefined;
   }
 
@@ -97,6 +98,13 @@ export class MyNearWalletConnector {
     this.functionCallKey = null;
     window.localStorage.removeItem("signedAccountId");
     window.localStorage.removeItem("functionCallKey");
+    // Clear per-contract function call keys
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k && k.startsWith("functionCallKey:")) keysToRemove.push(k);
+    }
+    keysToRemove.forEach((k) => window.localStorage.removeItem(k));
   }
 
   async requestSignIn({
@@ -131,9 +139,10 @@ export class MyNearWalletConnector {
 
     if (contractId) {
       newUrl.searchParams.set("contract_id", contractId);
-      const accessKey = KeyPair.fromRandom("ed25519");
-      newUrl.searchParams.set("public_key", accessKey.getPublicKey().toString());
-      this.functionCallKey = { privateKey: accessKey.toString(), contractId, methods: methodNames || [] };
+      const privateKey = privateKeyFromRandom();
+      const publicKey = publicKeyFromPrivate(privateKey);
+      newUrl.searchParams.set("public_key", publicKey);
+      this.functionCallKey = { privateKey, contractId, methods: methodNames || [] };
       window.localStorage.setItem("functionCallKey", JSON.stringify(this.functionCallKey));
     }
 
@@ -153,7 +162,7 @@ export class MyNearWalletConnector {
     const href = new URL(this.walletUrl);
     href.pathname = "sign-message";
     href.searchParams.append("message", message);
-    href.searchParams.append("nonce", Buffer.from(nonce).toString("base64"));
+    href.searchParams.append("nonce", bytesToBase64(new Uint8Array(nonce)));
     href.searchParams.append("recipient", recipient);
     href.searchParams.append("callbackUrl", url);
     if (state) href.searchParams.append("state", state);
@@ -167,17 +176,18 @@ export class MyNearWalletConnector {
     });
   }
 
-  async signAndSendTransactions(transactionsWS: Array<{ actions: Array<Action>; receiverId: string }>, signerId?: string): Promise<Array<FinalExecutionOutcome>> {
+  async signAndSendTransactions(transactionsWS: Array<{ actions: Array<any>; receiverId: string }>, signerId?: string): Promise<Array<any>> {
     const accountId = signerId || window.localStorage.getItem("signedAccountId") || this.signedAccountId;
     const txs = await Promise.all(transactionsWS.map((t) => this.completeTransaction({ signerId: accountId, receiverId: t.receiverId, actions: t.actions })));
     return this.signAndSendTransactionsMNW(txs);
   }
 
-  async signAndSendTransaction({ signerId, receiverId, actions }: { signerId?: string; receiverId: string; actions: Array<Action> }): Promise<FinalExecutionOutcome> {
+  async signAndSendTransaction({ signerId, receiverId, actions }: { signerId?: string; receiverId: string; actions: Array<any> }): Promise<any> {
     const accountId = signerId || window.localStorage.getItem("signedAccountId") || this.signedAccountId;
-    if (actions.length === 1 && this.storedKeyCanSign(receiverId, actions)) {
+    const key = this.getKeyForContract(receiverId);
+    if (actions.length === 1 && key && this.keyCanSign(key, actions)) {
       try {
-        return await this.signUsingKeyPair({ signerId: accountId, receiverId, actions });
+        return await this.signUsingKeyPair({ signerId: accountId, receiverId, actions, key });
       } catch (error) {
         // eslint-disable-next-line no-console
         console.warn("Failed to sign using key pair, falling back to wallet", error);
@@ -189,77 +199,92 @@ export class MyNearWalletConnector {
     return results[0];
   }
 
-  async completeTransaction({ signerId, receiverId, actions }: { signerId?: string; receiverId: string; actions: Array<Action> }): Promise<Transaction> {
+  async completeTransaction({ signerId, receiverId, actions }: { signerId?: string; receiverId: string; actions: Array<any> }): Promise<PlainTransaction> {
     const signedAccountId = signerId || window.localStorage.getItem("signedAccountId") || this.signedAccountId;
     const block = await this.provider.block({ finality: "final" });
-    const blockHash = baseDecode(block.header.hash);
-    return createTransaction(signedAccountId, KeyPair.fromRandom("ed25519").getPublicKey(), receiverId, 0, actions, blockHash);
+    return {
+      signerId: signedAccountId,
+      publicKey: publicKeyFromPrivate(privateKeyFromRandom()),
+      nonce: 0,
+      receiverId,
+      blockHash: block.header.hash,
+      actions,
+    };
   }
 
-  async signAndSendTransactionsMNW(txs: Array<Transaction>): Promise<Array<FinalExecutionOutcome>> {
+  async signAndSendTransactionsMNW(txs: Array<PlainTransaction>): Promise<Array<any>> {
     const url = this.requestSignTransactionsUrl(txs);
     const txsHashes = (await this.handlePopupTransaction(url, (data) => data.transactionHashes))?.split(",");
     if (!txsHashes) throw new Error("No transaction hashes received");
     return Promise.all(txsHashes.map((hash) => this.provider.txStatus(hash, "unused", "NONE")));
   }
 
-  storedKeyCanSign(receiverId: string, actions: Array<Action>) {
-    if (this.functionCallKey && this.functionCallKey.contractId === receiverId) {
-      return (
-        actions[0].functionCall &&
-        actions[0].functionCall.deposit.toString() === "0" &&
-        (this.functionCallKey.methods.length === 0 || this.functionCallKey.methods.includes(actions[0].functionCall.methodName))
-      );
-    } else {
-      return false;
-    }
+  getKeyForContract(receiverId: string): FunctionCallKey | null {
+    // New per-contract format first
+    const raw = window.localStorage.getItem(`functionCallKey:${receiverId}`);
+    if (raw) return { ...JSON.parse(raw), contractId: receiverId };
+    // Legacy fallback
+    if (this.functionCallKey && this.functionCallKey.contractId === receiverId) return this.functionCallKey;
+    return null;
   }
 
-  async signUsingKeyPair({ signerId, receiverId, actions }: { signerId?: string; receiverId: string; actions: Array<Action> }): Promise<FinalExecutionOutcome> {
+  keyCanSign(key: FunctionCallKey, actions: Array<any>): boolean {
+    const action = actions[0];
+    return !!(
+      action.type === "FunctionCall" &&
+      (action.deposit === "0" || action.deposit === undefined) &&
+      (key.methods.length === 0 || key.methods.includes(action.methodName))
+    );
+  }
+
+  async signUsingKeyPair({ signerId, receiverId, actions, key }: { signerId?: string; receiverId: string; actions: Array<any>; key: FunctionCallKey }): Promise<any> {
     const signedAccountId = signerId || window.localStorage.getItem("signedAccountId") || this.signedAccountId;
-    const keyPair = KeyPair.fromString(this.functionCallKey!.privateKey as any);
+    const publicKey = publicKeyFromPrivate(key.privateKey);
 
     // Look up access key nonce from RPC
-    const publicKey = keyPair.getPublicKey();
     const accessKeyInfo: any = await this.provider.query({
       request_type: "view_access_key",
       account_id: signedAccountId,
-      public_key: publicKey.toString(),
+      public_key: publicKey,
       finality: "optimistic",
     });
     const nonce = BigInt(accessKeyInfo.nonce) + 1n;
 
     // Get recent block hash
     const block = await this.provider.block({ finality: "final" });
-    const blockHash = baseDecode(block.header.hash);
 
-    // Create transaction using v2.5.1's createTransaction (same version as our SCHEMA)
-    const tx = createTransaction(signedAccountId, publicKey, receiverId, nonce, actions, blockHash);
+    // Build plain transaction and map for borsh serialization
+    const plainTx: PlainTransaction = {
+      signerId: signedAccountId, publicKey, nonce, receiverId,
+      blockHash: block.header.hash,
+      actions,
+    };
+    const mappedTx = mapTransaction(plainTx);
 
-    // Sign: hash the borsh-serialized transaction, sign with key pair
-    const serializedTx = borsh.serialize(SCHEMA.Transaction, tx);
+    // Sign: hash the borsh-serialized transaction, sign with private key
+    const serializedTx = borshSerialize(SCHEMA.Transaction, mappedTx);
     const txHash = sha256(serializedTx);
-    const signature = keyPair.sign(txHash);
+    const signatureBytes = signHash(txHash, key.privateKey) as Uint8Array;
 
     // Submit signed transaction directly via RPC
-    const signedTxBytes = borsh.serialize(SCHEMA.SignedTransaction, {
-      transaction: tx,
-      signature: { ed25519Signature: { data: signature.signature } },
+    const signedTxBytes = borshSerialize(SCHEMA.SignedTransaction, {
+      transaction: mappedTx,
+      signature: { ed25519Signature: { data: signatureBytes } },
     });
 
     return this.provider.sendJsonRpc("send_tx", {
-      signed_tx_base64: Buffer.from(signedTxBytes).toString("base64"),
+      signed_tx_base64: bytesToBase64(new Uint8Array(signedTxBytes)),
       wait_until: "EXECUTED_OPTIMISTIC",
     });
   }
 
-  requestSignTransactionsUrl(txs: Array<Transaction>): string {
+  requestSignTransactionsUrl(txs: Array<PlainTransaction>): string {
     const newUrl = new URL("sign", this.walletUrl);
     newUrl.searchParams.set(
       "transactions",
       txs
-        .map((transaction) => borsh.serialize(SCHEMA.Transaction, transaction))
-        .map((serialized) => Buffer.from(serialized).toString("base64"))
+        .map((tx) => borshSerialize(SCHEMA.Transaction, mapTransaction(tx)))
+        .map((serialized) => bytesToBase64(new Uint8Array(serialized)))
         .join(",")
     );
 
@@ -268,12 +293,10 @@ export class MyNearWalletConnector {
   }
 
   async handlePopupTransaction<T>(url: string, callback: (result: WalletMessage) => T): Promise<T> {
-    const screenWidth = window.innerWidth || screen.width;
-    const screenHeight = window.innerHeight || screen.height;
-    const left = (screenWidth - DEFAULT_POPUP_WIDTH) / 2;
-    const top = (screenHeight - DEFAULT_POPUP_HEIGHT) / 2;
+    const left = Math.round(window.screenX + (window.outerWidth - DEFAULT_POPUP_WIDTH) / 2);
+    const top = Math.round(window.screenY + (window.outerHeight - DEFAULT_POPUP_HEIGHT) / 2);
 
-    const childWindow = window.selector.open(url, "MyNearWallet", `width=${DEFAULT_POPUP_WIDTH},height=${DEFAULT_POPUP_HEIGHT},top=${top},left=${left}`);
+    const childWindow = window.selector.open(url, "MyNearWallet", `width=${DEFAULT_POPUP_WIDTH},height=${DEFAULT_POPUP_HEIGHT},top=${top},left=${left},scrollbars=yes,resizable=yes`);
 
     const id = await childWindow.windowIdPromise;
     if (!id) {
@@ -383,18 +406,46 @@ const MyNearWallet = async () => {
 
     async signAndSendTransaction({ signerId, receiverId, actions, network }: { signerId?: string; receiverId: string; actions: Array<ConnectorAction>; network: string }) {
       if (!wallet[network].isSignedIn()) throw new Error("Wallet not signed in");
-      return wallet[network].signAndSendTransaction({ signerId, receiverId, actions: connectorActionsToNearActions(actions) });
+      return wallet[network].signAndSendTransaction({ signerId, receiverId, actions: connectorActionsToFastnearActions(actions) });
     },
 
     async signAndSendTransactions({ signerId, transactions, network }: { signerId?: string; transactions: { receiverId: string; actions: ConnectorAction[] }[]; network: string }) {
       if (!wallet[network].isSignedIn()) throw new Error("Wallet not signed in");
       return wallet[network].signAndSendTransactions(
         transactions.map((t) => ({
-          actions: connectorActionsToNearActions(t.actions),
+          actions: connectorActionsToFastnearActions(t.actions),
           receiverId: t.receiverId,
         })),
         signerId,
       );
+    },
+
+    async generateFunctionCallKey({ contractId, methodNames, network }: { contractId: string; methodNames: string[]; network: string }) {
+      if (!wallet[network].isSignedIn()) throw new Error("Wallet not signed in");
+      const privateKey = privateKeyFromRandom();
+      const publicKey = publicKeyFromPrivate(privateKey);
+      // Store tentatively with a pending prefix
+      window.localStorage.setItem(
+        `pendingFunctionCallKey:${publicKey}`,
+        JSON.stringify({ privateKey, contractId, methods: methodNames || [] }),
+      );
+      return { publicKey };
+    },
+
+    async confirmFunctionCallKey({ publicKey, network }: { publicKey: string; network: string }) {
+      const raw = window.localStorage.getItem(`pendingFunctionCallKey:${publicKey}`);
+      if (!raw) throw new Error("No pending function call key found for this public key");
+      const { privateKey, contractId, methods } = JSON.parse(raw);
+      // Write to per-contract key
+      window.localStorage.setItem(`functionCallKey:${contractId}`, JSON.stringify({ privateKey, methods }));
+      // Update the in-memory legacy key as well so keyCanSign works immediately
+      wallet[network].functionCallKey = { privateKey, contractId, methods };
+      // Clean up pending
+      window.localStorage.removeItem(`pendingFunctionCallKey:${publicKey}`);
+    },
+
+    async removeFunctionCallKey({ publicKey }: { publicKey: string }) {
+      window.localStorage.removeItem(`pendingFunctionCallKey:${publicKey}`);
     },
   };
 };
