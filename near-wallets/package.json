@@ -1,14 +1,14 @@
 {
-  "name": "near-wallets",
-  "version": "0.7.0",
+  "name": "@fastnear/near-wallets",
+  "version": "0.7.2",
   "type": "commonjs",
   "license": "MIT",
-  "author": "HOT Labs",
+  "author": "HOT Labs and FastNear",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hot-dao/near-selector"
+    "url": "https://github.com/fastnear/near-connect"
   },
-  "homepage": "https://github.com/hot-dao/near-selector",
+  "homepage": "https://github.com/fastnear/near-connect",
   "scripts": {
     "postinstall": "patch-package",
     "build:wallets": "yarn build:hotwallet && yarn build:mnw && yarn build:near-mobile && yarn build:meteor && yarn build:wallet-connect && yarn build:nightly && yarn build:okx",
@@ -21,19 +21,20 @@
     "build:mnw": "PACKAGE=mnw vite build"
   },
   "devDependencies": {
+    "@fastnear/borsh-schema": "^0.9.11",
+    "@fastnear/utils": "^0.9.11",
+    "@fastnear/wallet-adapter": "^0.9.11",
+    "@here-wallet/core": "^3.4.0",
     "@near-js/crypto": "^2.5.1",
     "@near-js/transactions": "^2.5.1",
-    "@here-wallet/core": "^3.4.0",
-    "@meteorwallet/sdk": "1.0.9",
-    "@noble/hashes": "^1.4.0",
-    "@peersyst/near-mobile-signer": "^1.1.4",
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
     "@types/node": "^24.9.1",
     "@walletconnect/modal": "^2.7.0",
     "borsh": "^2.0.0",
     "patch-package": "^8.0.1",
     "qr-code-styling": "^1.9.2",
     "typescript": "^5.2.2",
-    "vite": "^5.3.4",
-    "vite-plugin-node-polyfills": "^0.24.0"
+    "vite": "^5.3.4"
   }
 }

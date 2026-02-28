@@ -21,4 +21,6 @@ export type {
   SignDelegateActionResult,
   SignInAndSignMessageParams,
   AccountWithSignedMessage,
+  AddFunctionCallKeyParams,
+  AddFunctionCallKeyResult,
 } from "./types";

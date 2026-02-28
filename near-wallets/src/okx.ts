@@ -1,8 +1,6 @@
-import { SignedTransaction } from "@near-js/transactions";
-
 import { isCurrentBrowserSupported } from "./utils/detectBrowser";
-import { connectorActionsToNearActions, ConnectorAction, FunctionCallAction } from "./utils/action";
 import { NearRpc } from "./utils/rpc";
+import type { ConnectorAction, FunctionCallAction } from "./utils/action";
 
 const checkExist = async () => {
   try {
@@ -34,12 +32,6 @@ const OKXWallet = async () => {
     const accountId = await okx("getAccountId");
     if (!accountId) return [];
     return [{ accountId }];
-  };
-
-  const getSignedTransaction = (signedTx: string) => {
-    const buf = Buffer.from(signedTx, "base64");
-    const signedTransaction = SignedTransaction.decode(buf);
-    return signedTransaction;
   };
 
   return {
@@ -80,13 +72,15 @@ const OKXWallet = async () => {
       try {
         const signedTx = await okx("signTransaction", {
           receiverId: receiverId,
-          actions: connectorActionsToNearActions(actions)
-            .map((action) => action.functionCall)
-            .filter(Boolean),
+          actions: actions
+            .filter((a): a is FunctionCallAction => a.type === "FunctionCall")
+            .map((a) => a.params),
         });
 
-        const signedTransaction = getSignedTransaction(signedTx);
-        return provider.sendTransaction(signedTransaction as any);
+        return provider.sendJsonRpc("send_tx", {
+          signed_tx_base64: signedTx,
+          wait_until: "EXECUTED_OPTIMISTIC",
+        });
       } catch (error) {
         console.error("signAndSendTransaction", error);
         throw new Error("sign Error");
@@ -113,8 +107,10 @@ const OKXWallet = async () => {
         const results = [];
 
         for (let i = 0; i < txs.length; i++) {
-          const signedTransaction = getSignedTransaction(txs[i].signedTx);
-          results.push(await provider.sendTransaction(signedTransaction as any));
+          results.push(await provider.sendJsonRpc("send_tx", {
+            signed_tx_base64: txs[i].signedTx,
+            wait_until: "EXECUTED_OPTIMISTIC",
+          }));
         }
 
         return results;
@@ -139,8 +135,7 @@ const OKXWallet = async () => {
           receiverId: receiverId,
         });
 
-        const signedTransaction = getSignedTransaction(signedTx);
-        return signedTransaction;
+        return signedTx;
       } catch (error) {
         throw new Error("Failed to create signed transaction");
       }

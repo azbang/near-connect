@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEAR Connect - Static HTML Example</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #111; color: #eee; padding: 2rem; max-width: 640px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.5rem; }
+    p.subtitle { color: #888; margin-bottom: 1.5rem; font-size: 0.9rem; }
+    .card { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
+    .card h2 { font-size: 1rem; margin-bottom: 0.75rem; }
+    button { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 0.6rem 1.2rem; font-size: 0.9rem; cursor: pointer; margin-right: 0.5rem; margin-bottom: 0.5rem; }
+    button:hover { background: #1d4ed8; }
+    button:disabled { background: #333; color: #666; cursor: not-allowed; }
+    button.danger { background: #dc2626; }
+    button.danger:hover { background: #b91c1c; }
+    #status { padding: 0.75rem; background: #0a0a0a; border: 1px solid #222; border-radius: 8px; font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; min-height: 2rem; margin-top: 0.75rem; color: #aaa; }
+    label { display: block; color: #aaa; font-size: 0.85rem; margin-bottom: 0.25rem; }
+    input { background: #0a0a0a; border: 1px solid #333; border-radius: 6px; padding: 0.5rem; color: #eee; font-size: 0.85rem; width: 100%; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>NEAR Connect - Static Example</h1>
+  <p class="subtitle">Single-file demo using the IIFE bundle. No build tools required.</p>
+
+  <div class="card">
+    <h2>1. Connect Wallet</h2>
+    <button id="btn-connect">Connect with MNW</button>
+    <button id="btn-disconnect" class="danger" disabled>Disconnect</button>
+    <div id="status">Not connected</div>
+  </div>
+
+  <div class="card">
+    <h2>2. Add Function Call Key</h2>
+    <label for="contract-id">Contract ID</label>
+    <input id="contract-id" value="guest-book.testnet" placeholder="e.g. guest-book.testnet" />
+    <label for="method-names">Methods (comma-separated, empty = all)</label>
+    <input id="method-names" value="addMessage" placeholder="e.g. addMessage,getMessages" />
+    <button id="btn-add-key" disabled>Add Key</button>
+  </div>
+
+  <div class="card">
+    <h2>3. Call Contract</h2>
+    <label for="call-method">Method name</label>
+    <input id="call-method" value="addMessage" />
+    <label for="call-args">Args (JSON)</label>
+    <input id="call-args" value='{"text": "Hello from static HTML!"}' />
+    <button id="btn-call" disabled>Sign & Send Transaction</button>
+  </div>
+
+  <!-- Load IIFE bundle from jsDelivr CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@fastnear/near-connect/cdn/hot-connect.iife.js"></script>
+  <script>
+    (function () {
+      var NearConnector = HOTConnect.NearConnector;
+
+      // Inline manifest with just MyNearWallet (cherry-picking)
+      var manifest = {
+        version: "1.1.0",
+        wallets: [
+          {
+            id: "mynearwallet",
+            name: "MyNearWallet",
+            icon: "https://storage.herewallet.app/upload/d0544304123d10518af961a15d5722ff1cef7abf62155f830e6d733e41f7da4b.png",
+            description: "Web wallet for NEAR.",
+            website: "https://mynearwallet.com",
+            version: "1.0.0",
+            executor: "https://raw.githubusercontent.com/fastnear/near-connect/refs/heads/main/repository/mnw.js",
+            type: "sandbox",
+            platform: { web: "https://app.mynearwallet.com" },
+            features: {
+              signMessage: true,
+              signInWithoutAddKey: true,
+              signAndSendTransaction: true,
+              signAndSendTransactions: true,
+              addFunctionCallKey: true,
+              testnet: true
+            },
+            permissions: {
+              storage: true,
+              allowsOpen: ["https://app.mynearwallet.com", "https://testnet.mynearwallet.com"]
+            }
+          }
+        ]
+      };
+
+      var connector = new NearConnector({
+        network: "testnet",
+        manifest: manifest,
+        autoConnect: true
+      });
+
+      var $status = document.getElementById("status");
+      var $connect = document.getElementById("btn-connect");
+      var $disconnect = document.getElementById("btn-disconnect");
+      var $addKey = document.getElementById("btn-add-key");
+      var $call = document.getElementById("btn-call");
+
+      function log(msg) {
+        $status.textContent = msg;
+        console.log("[near-connect]", msg);
+      }
+
+      function updateUI(connected) {
+        $connect.disabled = connected;
+        $disconnect.disabled = !connected;
+        $addKey.disabled = !connected;
+        $call.disabled = !connected;
+      }
+
+      // Try to restore session on load
+      connector.getConnectedWallet().then(function (result) {
+        log("Restored session: " + result.accounts[0].accountId);
+        updateUI(true);
+      }).catch(function () {
+        // Not connected
+      });
+
+      connector.on("wallet:signIn", function (e) {
+        log("Signed in: " + e.accounts[0].accountId);
+        updateUI(true);
+      });
+
+      connector.on("wallet:signOut", function () {
+        log("Signed out");
+        updateUI(false);
+      });
+
+      $connect.addEventListener("click", function () {
+        log("Opening wallet selector...");
+        connector.connect().catch(function (err) {
+          log("Connect failed: " + err.message);
+        });
+      });
+
+      $disconnect.addEventListener("click", function () {
+        connector.disconnect().then(function () {
+          log("Disconnected");
+          updateUI(false);
+        }).catch(function (err) {
+          log("Disconnect failed: " + err.message);
+        });
+      });
+
+      $addKey.addEventListener("click", function () {
+        var contractId = document.getElementById("contract-id").value.trim();
+        if (!contractId) return log("Enter a contract ID");
+
+        var raw = document.getElementById("method-names").value.trim();
+        var methodNames = raw ? raw.split(",").map(function (s) { return s.trim(); }) : [];
+
+        log("Adding function call key for " + contractId + "...");
+        connector.addFunctionCallKey({
+          contractId: contractId,
+          methodNames: methodNames,
+          network: "testnet"
+        }).then(function (result) {
+          log("Key added! publicKey: " + result.publicKey + "\ntxHash: " + result.transactionOutcome.transaction_outcome.id);
+        }).catch(function (err) {
+          log("addFunctionCallKey failed: " + err.message);
+        });
+      });
+
+      $call.addEventListener("click", function () {
+        var contractId = document.getElementById("contract-id").value.trim();
+        var methodName = document.getElementById("call-method").value.trim();
+        var argsStr = document.getElementById("call-args").value.trim();
+        if (!contractId || !methodName) return log("Fill in contract and method");
+
+        var args;
+        try { args = JSON.parse(argsStr); } catch (e) { return log("Invalid JSON args"); }
+
+        log("Sending transaction...");
+        connector.wallet().then(function (wallet) {
+          return wallet.signAndSendTransaction({
+            receiverId: contractId,
+            network: "testnet",
+            actions: [{
+              type: "FunctionCall",
+              params: {
+                methodName: methodName,
+                args: args,
+                gas: "30000000000000",
+                deposit: "0"
+              }
+            }]
+          });
+        }).then(function (outcome) {
+          log("Success! tx: " + outcome.transaction_outcome.id);
+        }).catch(function (err) {
+          log("Transaction failed: " + err.message);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

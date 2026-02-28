@@ -9,6 +9,8 @@ import {
   SignDelegateActionsResponse,
   SignedMessage,
   SignMessageParams,
+  AddFunctionCallKeyParams,
+  AddFunctionCallKeyResult,
   type AccountWithSignedMessage,
   type SignInAndSignMessageParams,
 } from "./types";
@@ -87,5 +89,10 @@ export class InjectedWallet {
       })),
       network: params.network || this.connector.network,
     });
+  }
+
+  async addFunctionCallKey(params: AddFunctionCallKeyParams): Promise<AddFunctionCallKeyResult> {
+    if (!this.wallet.addFunctionCallKey) throw new Error("addFunctionCallKey is not supported by this wallet");
+    return this.wallet.addFunctionCallKey({ ...params, network: params.network || this.connector.network });
   }
 }

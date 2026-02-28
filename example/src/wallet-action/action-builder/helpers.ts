@@ -1,5 +1,5 @@
 import { parseNearAmount } from "@near-js/utils";
-import type { ConnectorAction } from "@hot-labs/near-connect";
+import type { ConnectorAction } from "@fastnear/near-connect";
 import { ACTION_TYPES } from "./types.ts";
 import type { ActionForm, ActionType, Network } from "./types.ts";
 

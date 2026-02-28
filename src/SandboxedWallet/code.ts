@@ -8,6 +8,8 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
 
   const code = args.code
     .replaceAll(".localStorage", ".sandboxedLocalStorage")
+    // Catches bare `localStorage` references (e.g. from WalletConnect SDK) not matched by the `.localStorage` replacement above
+    .replaceAll(/(?<![.\w])localStorage(?=[\.\[\(])/g, "window.sandboxedLocalStorage")
     .replaceAll("window.top", "window.selector")
     .replaceAll("window.open", "window.selector.open");
 
@@ -308,6 +310,11 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
         }
         
         try {
+          // Ensure signerId is available in sandboxedLocalStorage for wallet code that reads it
+          if (event.data.params?.signerId) {
+            window.sandboxedLocalStorage.setItem("signedAccountId", event.data.params.signerId);
+          }
+
           const result = await wallet[method](event.data.params);
           window.parent.postMessage({ ...payload, status: "success", result }, "*");
         } catch (error) {

@@ -2,9 +2,11 @@
 
 ![ezgif-26d74832f88c3c](https://github.com/user-attachments/assets/c4422057-38bb-4cd9-8bd0-568e29f46280)
 
-Zero-dependenices, robust, secure and lightweight wallet connector for the NEAR blockchain with **easily updatable** wallets code
+This is a FastNear fork of the MIT licensed https://github.com/azbang/near-connect that makes modifications such that a function-call access key can reside in local storage and not prompt the end user to sign each time. Every transaction that contains a non-zero deposit still triggers the wallet confirmation.
 
-`yarn add @hot-labs/near-connect`
+Zero-dependency, robust, secure and lightweight wallet connector for the NEAR blockchain with **easily updatable** wallets code
+
+`yarn add @fastnear/near-connect`
 
 ## How it works
 
@@ -26,7 +28,7 @@ Unlike near-wallet-selector, this library provides a secure execution environmen
 ## Dapp integration
 
 ```ts
-import { NearConnector } from "@hot-labs/near-connect";
+import { NearConnector } from "@fastnear/near-connect";
 
 const connector = new NearConnector();
 
@@ -77,7 +79,7 @@ Some wallets only work when you pass WalletConnect sign client to NearConnector,
 import SignClient from "@walletconnect/sign-client";
 const walletConnect = SignClient.init({ projectId: "...", metadata: {} });
 
-import { NearConnector } from "@hot-labs/near-connect";
+import { NearConnector } from "@fastnear/near-connect";
 const connector = new NearConnector({ walletConnect });
 ```
 
@@ -87,7 +89,50 @@ const connector = new NearConnector({ walletConnect });
 new NearConnector({ signIn: { contractId: "game.near", methods: ["action"] } });
 ```
 
-Some wallets allow adding a limited-access key to a contract as soon as the user connects their wallet. This enables the app to sign non-payable transactions without requiring wallet approval each time. However, this approach requires the user to submit an on-chain transaction during the initial connection, which may negatively affect the user experience. A better practice is to add the limited-access key after the user has already begun actively interacting with your application.
+Some wallets allow adding a limited-access key to a contract as soon as the user connects their wallet. This enables the app to sign non-payable transactions without requiring wallet approval each time. However, this approach requires the user to submit an on-chain transaction during the initial connection, which may negatively affect the user experience. A better practice is to add the limited-access key after the user has already begun actively interacting with your application — see `addFunctionCallKey` below.
+
+## Add function-call access key after sign-in (recommended)
+
+Instead of adding a key during sign-in, use `addFunctionCallKey` after the user has started interacting with your app. This avoids the on-chain transaction at sign-in time and provides a better UX.
+
+```ts
+const connector = new NearConnector();
+await connector.connect();
+
+// When the user starts interacting, add a function-call access key:
+const result = await connector.addFunctionCallKey({
+  contractId: "game.near",
+  methodNames: ["play_turn", "claim_reward"], // optional, empty = all methods
+  allowance: "250000000000000000000000", // optional, 0.25 NEAR
+});
+
+// Now zero-deposit function calls are signed locally (no popup):
+const wallet = await connector.wallet();
+await wallet.signAndSendTransaction({
+  receiverId: "game.near",
+  actions: [
+    {
+      type: "FunctionCall",
+      params: {
+        methodName: "play_turn",
+        args: {},
+        gas: "30000000000000",
+        deposit: "0",
+      },
+    },
+  ],
+});
+```
+
+The user approves one wallet popup (the `AddKey` transaction), and all subsequent zero-deposit function calls to the specified contract are signed locally with no popup.
+
+Wallets that support this feature declare `addFunctionCallKey: true` in their manifest. You can filter for compatible wallets:
+
+```ts
+const connector = new NearConnector({
+  features: { addFunctionCallKey: true },
+});
+```
 
 ## SignAndSendTransaction format actions
 
@@ -238,6 +283,24 @@ In fact, main target for audit is `src/wallets/near-wallets/SandboxedWallet/*`.
 Additional:
 Auditing `src/helpers` will help assess the correctness of the coding algorithms.
 Auditing `src/popups` will help assess the correctness of interaction with the DOM, the presence of potential XSS attacks.
+
+## Publishing
+
+To publish a new version of `@fastnear/near-connect`:
+
+1. Build the library:
+   ```sh
+   yarn build
+   ```
+
+2. Bump the version in the root `package.json`.
+
+3. Publish to npm:
+   ```sh
+   yarn npm publish --access public --otp <code>
+   ```
+
+> **Note:** Only `@fastnear/near-connect` is published to npm. The `near-wallets/` package is not published separately — it builds executor scripts into `./repository/` and CDN bundles into `./cdn/`, which are referenced by the manifest.
 
 ## Contributions
 

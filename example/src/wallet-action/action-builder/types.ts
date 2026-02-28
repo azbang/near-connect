@@ -1,4 +1,4 @@
-import type { ConnectorAction } from "@hot-labs/near-connect";
+import type { ConnectorAction } from "@fastnear/near-connect";
 
 export type Network = "testnet" | "mainnet";
 export type ActionType = ConnectorAction["type"];

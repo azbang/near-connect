@@ -22,7 +22,7 @@
     "noFallthroughCasesInSwitch": true,
 
     "paths": {
-      "@hot-labs/near-connect": ["../src"]
+      "@fastnear/near-connect": ["../src"]
     }
   },
 

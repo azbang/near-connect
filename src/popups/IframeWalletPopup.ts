@@ -24,7 +24,7 @@ export class IframeWalletPopup extends Popup<{}> {
     const modalBody = this.root.querySelector(".modal-body")! as HTMLElement;
     modalBody.appendChild(this.delegate.iframe);
     this.delegate.iframe.style.width = "100%";
-    this.delegate.iframe.style.height = "720px";
+    this.delegate.iframe.style.height = "770px";
     this.delegate.iframe.style.border = "none";
   }
 

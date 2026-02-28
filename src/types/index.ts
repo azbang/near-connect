@@ -108,6 +108,7 @@ export interface WalletFeatures {
   signInWithoutAddKey: boolean;
   signInAndSignMessage: boolean;
   signDelegateActions: boolean;
+  addFunctionCallKey: boolean;
   mainnet: boolean;
   testnet: boolean;
 }
@@ -119,6 +120,19 @@ export type SignDelegateActionResult = {
 
 export interface SignDelegateActionsResponse {
   signedDelegateActions: SignDelegateActionResult[];
+}
+
+export interface AddFunctionCallKeyParams {
+  contractId: string;
+  methodNames?: Array<string>;
+  allowance?: string;
+  network?: Network;
+  signerId?: string;
+}
+
+export interface AddFunctionCallKeyResult {
+  publicKey: string;
+  transactionOutcome: FinalExecutionOutcome;
 }
 
 export interface SignInParams {
@@ -166,6 +180,13 @@ export interface NearWalletBase {
   signMessage(params: SignMessageParams): Promise<SignedMessage>;
 
   signDelegateActions(params: SignDelegateActionsParams): Promise<SignDelegateActionsResponse>;
+
+  /**
+   * Adds a function-call access key for the given contract. The wallet generates a keypair,
+   * the user approves an AddKey transaction via the wallet popup, and the private key is stored
+   * locally for future zero-popup signing of zero-deposit function calls.
+   */
+  addFunctionCallKey(params: AddFunctionCallKeyParams): Promise<AddFunctionCallKeyResult>;
 }
 
 export interface EventMap {
