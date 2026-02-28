@@ -5,17 +5,17 @@
 ## Installation
 
 ```bash
-yarn add @hot-labs/near-connect
+yarn add @fastnear/near-connect
 ```
 
 Or via CDN with importmap:
 
 ```html
 <script type="importmap">
-  { "imports": { "@hot-labs/near-connect": "https://esm.sh/@hot-labs/near-connect" } }
+  { "imports": { "@fastnear/near-connect": "https://esm.sh/@fastnear/near-connect" } }
 </script>
 <script type="module">
-  import { NearConnector } from "@hot-labs/near-connect";
+  import { NearConnector } from "@fastnear/near-connect";
   // ...
 </script>
 ```
@@ -23,7 +23,7 @@ Or via CDN with importmap:
 ## Quick Start
 
 ```typescript
-import { NearConnector } from "@hot-labs/near-connect";
+import { NearConnector } from "@fastnear/near-connect";
 
 const connector = new NearConnector({
   network: "mainnet",
