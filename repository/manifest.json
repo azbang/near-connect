@@ -57,7 +57,8 @@
         "signMessage": true,
         "signInWithoutAddKey": true,
         "signAndSendTransaction": true,
-        "signAndSendTransactions": true
+        "signAndSendTransactions": true,
+        "addFunctionCallKey": true
       },
 
       "permissions": {
@@ -72,7 +73,7 @@
       "description": "The most simple and secure wallet to manage your crypto, access DeFi, and explore Web3",
       "website": "https://meteorwallet.app/",
       "version": "1.1.0",
-      "executor": "https://raw.githubusercontent.com/Meteor-Wallet/meteor_wallet_sdk/data-storage/storage/meteor-near-connect-latest.js",
+      "executor": "https://raw.githubusercontent.com/fastnear/near-connect/refs/heads/main/repository/meteor.js",
       "type": "sandbox",
 
       "features": {
@@ -81,7 +82,6 @@
         "signInAndSignMessage": true,
         "signAndSendTransaction": true,
         "signAndSendTransactions": true,
-        "signDelegateActions": true,
         "mainnet": true,
         "testnet": true
       },
@@ -174,7 +174,7 @@
       "icon": "https://storage.herewallet.app/upload/179839f01189bc54afea2fd34eb092ddb6d63c97b5c8c9e418317285fd751f0c.webp",
       "description": "Discover the only NEAR wallet you will need: NEAR Mobile, the most secure and comprehensive mobile wallet designed exclusively for the NEAR Blockchain",
       "website": "https://nearmobile.app",
-      "executor": "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/near-mobile.js",
+      "executor": "https://raw.githubusercontent.com/fastnear/near-connect/refs/heads/main/repository/near-mobile.js",
       "type": "sandbox",
       "version": "1.0.0",
 
