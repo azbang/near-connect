@@ -9,6 +9,8 @@ import {
   SignMessageParams,
   WalletManifest,
   SignDelegateActionsResponse,
+  AddFunctionCallKeyParams,
+  AddFunctionCallKeyResult,
   type AccountWithSignedMessage,
   type SignInAndSignMessageParams,
 } from "../types";
@@ -82,6 +84,50 @@ export class SandboxWallet {
       network: params.network || this.connector.network,
     };
     return this.executor.call("wallet:signDelegateActions", args);
+  }
+
+  async addFunctionCallKey(params: AddFunctionCallKeyParams): Promise<AddFunctionCallKeyResult> {
+    const network = params.network || this.connector.network;
+    const signerId = params.signerId;
+
+    // Phase 1: Generate keypair inside the executor iframe
+    const { publicKey } = await this.executor.call<{ publicKey: string }>("wallet:generateFunctionCallKey", {
+      contractId: params.contractId,
+      methodNames: params.methodNames || [],
+      network,
+    });
+
+    try {
+      // Phase 2: Submit AddKey transaction through the existing signing flow
+      const outcome = await this.signAndSendTransaction({
+        network,
+        signerId,
+        receiverId: signerId!,
+        actions: [
+          {
+            type: "AddKey",
+            params: {
+              publicKey,
+              accessKey: {
+                permission: {
+                  receiverId: params.contractId,
+                  allowance: params.allowance,
+                  methodNames: params.methodNames || [],
+                },
+              },
+            },
+          },
+        ],
+      });
+
+      // Phase 3: Confirm — promote tentative key to active
+      await this.executor.call("wallet:confirmFunctionCallKey", { publicKey, network });
+      return { publicKey, transactionOutcome: outcome };
+    } catch (error) {
+      // Rollback — remove tentative key on failure
+      await this.executor.call("wallet:removeFunctionCallKey", { publicKey, network }).catch(() => {});
+      throw error;
+    }
   }
 }
 

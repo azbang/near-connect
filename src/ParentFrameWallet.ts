@@ -12,6 +12,8 @@ import {
   WalletManifest,
   SignDelegateActionsParams,
   SignDelegateActionsResponse,
+  AddFunctionCallKeyParams,
+  AddFunctionCallKeyResult,
   type AccountWithSignedMessage,
   type SignInAndSignMessageParams,
 } from "./types";
@@ -101,5 +103,10 @@ export class ParentFrameWallet {
     };
 
     return this.callParentFrame("near:signDelegateActions", args) as Promise<SignDelegateActionsResponse>;
+  }
+
+  async addFunctionCallKey(params: AddFunctionCallKeyParams): Promise<AddFunctionCallKeyResult> {
+    const args = { ...params, network: params.network || this.connector.network };
+    return this.callParentFrame("near:addFunctionCallKey", args) as Promise<AddFunctionCallKeyResult>;
   }
 }
