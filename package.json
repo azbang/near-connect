@@ -1,6 +1,6 @@
 {
   "name": "@fastnear/near-connect",
-  "version": "0.10.2",
+  "version": "0.10.4",
   "type": "commonjs",
   "main": "./build/index.js",
   "types": "./build/index.d.ts",
