@@ -12,23 +12,38 @@ export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 export type Network = "mainnet" | "testnet";
 
-export interface FunctionCallAccessKey_AllMethods {
+export interface FunctionCallAccessKey_MethodTarget_AllMethods {
   target: "all_methods";
 }
 
-export interface FunctionCallAccessKey_SelectMethods {
+export interface FunctionCallAccessKey_MethodTarget_SelectMethods {
   target: "select_methods";
   methodNames: string[];
 }
 
-export type FunctionCallAccessKey_MethodTarget = FunctionCallAccessKey_AllMethods | FunctionCallAccessKey_SelectMethods;
+export type AddFunctionCallKey_MethodTarget = FunctionCallAccessKey_MethodTarget_AllMethods | FunctionCallAccessKey_MethodTarget_SelectMethods;
 
-export interface FunctionCallAccessKeyParams {
+export interface FunctionCallAccessKey_GasAllowance_Unlimited {
+  type: "unlimited";
+}
+
+export interface FunctionCallAccessKey_GasAllowance_Limited {
+  type: "limited";
+  /** The amount of gas allowed over the lifetime of the key in yoctoNEAR. */
+  amount: string;
+}
+
+export type AddFunctionCallKey_GasAllowance = FunctionCallAccessKey_GasAllowance_Unlimited | FunctionCallAccessKey_GasAllowance_Limited;
+
+export interface AddFunctionCallKeyParams {
   // The contract / account ID which the access key will have access to call methods on.
   receiverId: string;
   /** Using format "<key_type>:<base58_public_key>" e.g. "ed25519:3N5QmbhVqLh9ZtZs1zj8X9v1u1Z1Z1Z1Z1Z1Z1Z1Z1Z" */
   publicKey: string;
-  methodTarget: FunctionCallAccessKey_MethodTarget;
+  methodTarget: AddFunctionCallKey_MethodTarget;
+  /** Optional:  The gas allowance for the function call key over its lifetime of executing transactions.
+   *  Default to "limited" with 0.25 NEAR (non-Yocto). */
+  gasAllowance?: AddFunctionCallKey_GasAllowance;
 }
 
 export interface NearConnector_ConnectOptions {
@@ -42,7 +57,15 @@ export interface NearConnector_ConnectOptions {
    * This is useful for cases where you want to verify ownership of the account during sign in without any additional steps.
    */
   signMessageParams?: SignMessageDuringSignInParams;
-  addFunctionCallAccessKey?: FunctionCallAccessKeyParams;
+  /**
+   * If this is provided, the connector will filter for wallets that support the "signInWithFunctionCallAccessKey" feature and use these
+   * params to add a function call access key during sign in.
+   *
+   * These params indicate to the wallet that a Function Call Key with these parameters should be added during the sign in process with the specified parameters.
+   *
+   * See: https://docs.near.org/protocol/access-keys#function-call-keys
+   */
+  addFunctionCallKey?: AddFunctionCallKeyParams;
 }
 
 export interface Account {
@@ -132,7 +155,7 @@ export interface WalletFeatures {
   signAndSendTransactions: boolean;
   signInWithoutAddKey: boolean;
   signInAndSignMessage: boolean;
-  signInWithFunctionCallAccessKey: boolean;
+  signInWithFunctionCallKey: boolean;
   signDelegateActions: boolean;
   mainnet: boolean;
   testnet: boolean;
@@ -140,7 +163,7 @@ export interface WalletFeatures {
 
 export interface SignInParams {
   network?: Network;
-  addFunctionCallAccessKey?: FunctionCallAccessKeyParams;
+  addFunctionCallKey?: AddFunctionCallKeyParams;
 }
 
 export interface SignInAndSignMessageParams extends SignInParams {

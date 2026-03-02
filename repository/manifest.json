@@ -81,6 +81,7 @@
         "signInAndSignMessage": true,
         "signAndSendTransaction": true,
         "signAndSendTransactions": true,
+        "signInWithFunctionCallKey": true,
         "signDelegateActions": true,
         "mainnet": true,
         "testnet": true

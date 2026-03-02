@@ -57,8 +57,10 @@ const defaultManifests = [
 
 function createFilterForWalletFeatures(features: Partial<WalletFeatures>) {
   return (wallet: NearWalletBase) => {
-    return Object.entries(features).every(([key, value]) => {
-      return value != null && wallet.manifest.features?.[key as keyof WalletFeatures] === true;
+    if (Object.entries(features).length === 0) return true;
+
+    return Object.entries(features).filter(([_, value]) => value === true).every(([key]) => {
+      return wallet.manifest.features?.[key as keyof WalletFeatures] === true;
     });
   };
 }
@@ -262,7 +264,7 @@ export class NearConnector {
       walletId = await this.selectWallet({
         features: {
           signInAndSignMessage: input.signMessageParams != null ? true : undefined,
-          signInWithFunctionCallAccessKey: input.addFunctionCallAccessKey != null ? true : undefined,
+          signInWithFunctionCallKey: input.addFunctionCallKey != null ? true : undefined,
         },
       });
     }
@@ -274,9 +276,13 @@ export class NearConnector {
       await this.storage.set("selected-wallet", walletId);
       this.logger?.log(`Set preferred wallet, try to signIn${signMessageParams != null ? " (with signed message)" : ""}`, walletId);
 
+      if (input.addFunctionCallKey != null) {
+        this.logger?.log(`Adding function call access key during sign in with params`, input.addFunctionCallKey);
+      }
+
       if (signMessageParams != null) {
         const accounts = await wallet.signInAndSignMessage({
-          addFunctionCallAccessKey: input.addFunctionCallAccessKey,
+          addFunctionCallKey: input.addFunctionCallKey,
           messageParams: signMessageParams,
           network: this.network,
         });
@@ -296,7 +302,7 @@ export class NearConnector {
         });
       } else {
         const accounts = await wallet.signIn({
-          addFunctionCallAccessKey: input.addFunctionCallAccessKey,
+          addFunctionCallKey: input.addFunctionCallKey,
           network: this.network,
         });
 

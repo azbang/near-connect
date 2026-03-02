@@ -29,8 +29,8 @@
     }
   },
   "include": [
-    "src",
-    "../src",
+    "src/**/*",
+    "../src/**/*",
     "vite-env.d.ts",
     "vite.config.ts",
     "tsconfig.json",

@@ -7,12 +7,13 @@ import { useLocalStorage } from "usehooks-ts";
 import type { NearConnector_ConnectOptions } from "../../src/types/index.ts";
 import { NetworkSelector } from "./form-component/NetworkSelector.tsx";
 import { WalletActions } from "./WalletActions.tsx";
+import { parseNearAmount } from "@near-js/utils";
 
 export const ExampleNEAR: FC = () => {
   const [network, setNetwork] = useState<"testnet" | "mainnet">("mainnet");
   const [account, _setAccount] = useState<{ id: string; network: "testnet" | "mainnet" }>();
   const [wallet, setWallet] = useState<NearWalletBase | undefined>();
-  const [extendedSecretKey, setExtendedSecretKey] = useLocalStorage<string | undefined>("example-extended-secret-key", undefined);
+  const [extendedSecretKey, setExtendedSecretKey] = useLocalStorage<string | undefined>(`example-extended-secret-key-${network}`, undefined);
 
   const logger = {
     log: (...args: any[]) => console.log(args),
@@ -114,12 +115,16 @@ export const ExampleNEAR: FC = () => {
               setExtendedSecretKey(extendedSecretKey);
 
               connect({
-                addFunctionCallAccessKey: {
+                addFunctionCallKey: {
                   publicKey: publicKey,
-                  receiverId: "social.near",
+                  receiverId: network === "mainnet" ? "social.near" : "v1.social08.testnet",
                   methodTarget: {
                     target: "select_methods",
-                    methodNames: ["get"],
+                    methodNames: ["get", "set"],
+                  },
+                  gasAllowance: {
+                    type: "limited",
+                    amount: parseNearAmount("0.5")!, // 0.5 NEAR in yoctoNEAR
                   },
                 },
               });

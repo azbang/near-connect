@@ -26,17 +26,17 @@ export class InjectedWallet implements NearWalletBase {
     return this.wallet.manifest;
   }
 
-  async signIn({ addFunctionCallAccessKey: functionCallAccessKey, network }: SignInParams): Promise<Array<Account>> {
+  async signIn({ addFunctionCallKey: functionCallAccessKey, network }: SignInParams): Promise<Array<Account>> {
     return this.wallet.signIn({
       network: network ?? this.connector.network,
-      addFunctionCallAccessKey: functionCallAccessKey,
+      addFunctionCallKey: functionCallAccessKey,
     });
   }
 
   async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<Array<AccountWithSignedMessage>> {
     return this.wallet.signInAndSignMessage({
       network: data?.network ?? this.connector.network,
-      addFunctionCallAccessKey: data.addFunctionCallAccessKey,
+      addFunctionCallKey: data.addFunctionCallKey,
       messageParams: data.messageParams,
     });
   }

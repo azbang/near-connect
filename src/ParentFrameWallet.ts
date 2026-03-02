@@ -43,7 +43,7 @@ export class ParentFrameWallet {
   async signIn(data?: SignInParams): Promise<Array<Account>> {
     const result = await this.callParentFrame("near:signIn", {
       network: data?.network ?? this.connector.network,
-      functionCallAccessKey: data?.addFunctionCallAccessKey,
+      functionCallAccessKey: data?.addFunctionCallKey,
     });
 
     if (Array.isArray(result)) return result;
@@ -53,7 +53,7 @@ export class ParentFrameWallet {
   async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<Array<AccountWithSignedMessage>> {
     const result = await this.callParentFrame("near:signInAndSignMessage", {
       network: data?.network ?? this.connector.network,
-      functionCallAccessKey: data?.addFunctionCallAccessKey,
+      functionCallAccessKey: data?.addFunctionCallKey,
       messageParams: data.messageParams,
     });
 
