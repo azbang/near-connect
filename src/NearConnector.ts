@@ -14,12 +14,14 @@ import type {
   AbstractWalletConnect,
   FooterBranding,
   NearConnector_ConnectOptions,
+  AddFunctionCallKeyParams,
 } from "./types";
 import type { WalletPlugin } from "./types/plugin";
 
 import { ParentFrameWallet } from "./ParentFrameWallet";
 import { InjectedWallet } from "./InjectedWallet";
 import { SandboxWallet } from "./SandboxedWallet";
+import { parseNearAmount } from "@near-js/utils";
 
 interface NearConnectorOptions {
   providers?: { mainnet?: string[]; testnet?: string[] };
@@ -276,13 +278,24 @@ export class NearConnector {
       await this.storage.set("selected-wallet", walletId);
       this.logger?.log(`Set preferred wallet, try to signIn${signMessageParams != null ? " (with signed message)" : ""}`, walletId);
 
+      let addFunctionCallKey: AddFunctionCallKeyParams | undefined = undefined;
+
       if (input.addFunctionCallKey != null) {
         this.logger?.log(`Adding function call access key during sign in with params`, input.addFunctionCallKey);
+
+        // Set default gas allowance if not provided
+        addFunctionCallKey = {
+          ...input.addFunctionCallKey,
+          gasAllowance: input.addFunctionCallKey.gasAllowance ?? {
+            type: "limited",
+            amount: parseNearAmount("0.25")!, // 0.25 NEAR in yoctoNEAR
+          },
+        }
       }
 
       if (signMessageParams != null) {
         const accounts = await wallet.signInAndSignMessage({
-          addFunctionCallKey: input.addFunctionCallKey,
+          addFunctionCallKey,
           messageParams: signMessageParams,
           network: this.network,
         });
@@ -302,7 +315,7 @@ export class NearConnector {
         });
       } else {
         const accounts = await wallet.signIn({
-          addFunctionCallKey: input.addFunctionCallKey,
+          addFunctionCallKey,
           network: this.network,
         });
 

@@ -165,7 +165,7 @@
   resolved "https://registry.yarnpkg.com/@near-js/types/-/types-2.5.1.tgz#2fbae08edd9296255f08e2693d3ef4142dbc33a7"
   integrity sha512-lUJJmbV6qcilIwswldeP7FIjkjTWvmtgI+yQHVmiBNRVjYvPMiQ/e9vs3SXE/cYtRluAdq0JHJwYoqhFb69mwA==
 
-"@near-js/utils@2.5.1":
+"@near-js/utils@2.5.1", "@near-js/utils@^2.2.4":
   version "2.5.1"
   resolved "https://registry.yarnpkg.com/@near-js/utils/-/utils-2.5.1.tgz#4fa7f6d3e13a5d33f86f5628fee7b2c1760b56b3"
   integrity sha512-bXsw7Qkm689tV0sg6nwplAFoL6PrQ5tY72YIoiZezZ8ZGBea+2+ILmUIHWKLum7b7qJHKq1iH7uycE+m+Z4QHA==
