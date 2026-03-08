@@ -7,7 +7,7 @@ import * as borsh from "borsh";
 
 import { NearRpc } from "./utils/rpc";
 import { connectorActionsToNearActions, ConnectorAction } from "./utils/action";
-import type { SignInParams } from "./utils/types";
+import type { SignInParams, SignInAndSignMessageParams, AccountWithSignedMessage } from "./utils/types";
 
 const DEFAULT_POPUP_WIDTH = 480;
 const DEFAULT_POPUP_HEIGHT = 640;
@@ -277,6 +277,35 @@ const MyNearWallet = async () => {
       }
 
       return getAccounts(network);
+    },
+
+    async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<AccountWithSignedMessage[]> {
+      const { network, addFunctionCallKey, messageParams } = data;
+      if (!wallet[network].isSignedIn()) {
+        const contractId = addFunctionCallKey?.contractId;
+        const publicKey = addFunctionCallKey?.publicKey;
+        const methodNames = addFunctionCallKey?.allowMethods?.anyMethod === false
+          ? addFunctionCallKey.allowMethods.methodNames
+          : undefined;
+        await wallet[network].requestSignIn({ contractId, methodNames, publicKey });
+      }
+
+      const signedMessage = await wallet[network].signMessage({
+        message: messageParams.message,
+        recipient: messageParams.recipient,
+        nonce: messageParams.nonce,
+      });
+
+      const accountId = wallet[network].getAccountId();
+      return [{
+        accountId,
+        publicKey: signedMessage.publicKey || "",
+        signedMessage: {
+          accountId: signedMessage.accountId || accountId,
+          publicKey: signedMessage.publicKey || "",
+          signature: signedMessage.signature || "",
+        },
+      }];
     },
 
     async signOut({ network }: { network: string }) {

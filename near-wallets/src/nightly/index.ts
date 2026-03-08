@@ -2,9 +2,9 @@ import { PublicKey } from "@near-js/crypto";
 import { baseEncode } from "@near-js/utils";
 import { Signer } from "@near-js/signers";
 
-import { ConnectorAction } from "../utils/action";
+import type { ConnectorAction, AddKeyAction } from "../utils/action";
 import { signAndSendTransactionsHandler } from "./helper";
-import type { SignInParams } from "../utils/types";
+import type { SignInParams, SignInAndSignMessageParams, AccountWithSignedMessage, AddFunctionCallKeyParams } from "../utils/types";
 
 const networks: Record<string, any> = {
   mainnet: {
@@ -71,17 +71,83 @@ const Nightly = async () => {
     },
   };
 
-  return {
-    async signIn({ addFunctionCallKey }: SignInParams) {
-      await checkExist();
-      const existingAccounts = await getAccounts();
-      if (existingAccounts.length) return existingAccounts;
-      const contractId = addFunctionCallKey?.contractId;
-      const methodNames = addFunctionCallKey?.allowMethods?.anyMethod === false
-        ? addFunctionCallKey.allowMethods.methodNames
+  const buildAddKeyAction = (addFunctionCallKey: AddFunctionCallKeyParams): AddKeyAction => {
+    const methodNames = addFunctionCallKey.allowMethods.anyMethod === false
+      ? addFunctionCallKey.allowMethods.methodNames
+      : [];
+
+    let allowance: string | undefined;
+    if (addFunctionCallKey.gasAllowance) {
+      allowance = addFunctionCallKey.gasAllowance.kind === "limited"
+        ? addFunctionCallKey.gasAllowance.amount
         : undefined;
-      await window.selector.external("nightly.near", "connect", { contractId, methodNames });
-      return getAccounts();
+    }
+
+    return {
+      type: "AddKey",
+      params: {
+        publicKey: addFunctionCallKey.publicKey,
+        accessKey: {
+          permission: {
+            receiverId: addFunctionCallKey.contractId,
+            methodNames,
+            allowance,
+          },
+        },
+      },
+    };
+  };
+
+  const connectAndAddKey = async (addFunctionCallKey: AddFunctionCallKeyParams | undefined, network: string) => {
+    await checkExist();
+    let accounts = await getAccounts();
+    if (!accounts.length) {
+      await window.selector.external("nightly.near", "connect");
+      accounts = await getAccounts();
+    }
+    if (!accounts.length) throw new Error("Wallet not signed in");
+
+    if (addFunctionCallKey) {
+      const signerId = accounts[0].accountId;
+      const addKeyAction = buildAddKeyAction(addFunctionCallKey);
+      await signAndSendTransactionsHandler(
+        [{ signerId, receiverId: signerId, actions: [addKeyAction] }],
+        signer,
+        networks[network],
+      );
+    }
+
+    return accounts;
+  };
+
+  return {
+    async signIn({ addFunctionCallKey, network }: SignInParams) {
+      const accounts = await connectAndAddKey(addFunctionCallKey, network);
+      return accounts;
+    },
+
+    async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<AccountWithSignedMessage[]> {
+      const accounts = await connectAndAddKey(data.addFunctionCallKey, data.network);
+
+      const isConnected = await window.selector.external("nightly.near", "isConnected");
+      if (!isConnected) await window.selector.external("nightly.near", "connect");
+
+      const { messageParams } = data;
+      const signedMessage = await window.selector.external("nightly.near", "signMessage", {
+        nonce: Array.from(messageParams.nonce),
+        recipient: messageParams.recipient,
+        message: messageParams.message,
+      });
+
+      return [{
+        accountId: accounts[0].accountId,
+        publicKey: accounts[0].publicKey,
+        signedMessage: {
+          accountId: signedMessage.accountId ?? accounts[0].accountId,
+          publicKey: signedMessage.publicKey ?? accounts[0].publicKey ?? "",
+          signature: signedMessage.signature ?? "",
+        },
+      }];
     },
 
     async signOut() {

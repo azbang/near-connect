@@ -4,7 +4,6 @@ import * as nearAPI from "near-api-js";
 import { connectorActionsToNearActions, ConnectorAction } from "./utils/action";
 import { SelectorStorageKeyStore } from "./utils/keystore";
 import { NearRpc } from "./utils/rpc";
-import type { SignInParams } from "./utils/types";
 
 const keyStore = new SelectorStorageKeyStore();
 const defaults = {
@@ -66,12 +65,8 @@ const createMeteorWallet = async () => {
   };
 
   return {
-    async signIn({ network, addFunctionCallKey }: SignInParams) {
+    async signIn({ network, contractId, methodNames }: any) {
       const state = await getState(network);
-      const contractId = addFunctionCallKey?.contractId;
-      const methodNames = addFunctionCallKey?.allowMethods?.anyMethod === false
-        ? addFunctionCallKey.allowMethods.methodNames
-        : undefined;
 
       await tryApprove({
         title: "Sign in",

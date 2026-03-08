@@ -2,8 +2,8 @@ import { WalletConnectModal } from "@walletconnect/modal";
 import type { Transaction } from "@near-js/transactions";
 import type { AccessKeyViewRaw, FinalExecutionOutcome } from "@near-js/types";
 import { NearRpc } from "./utils/rpc";
-import { ConnectorAction, connectorActionsToNearApiJsActions } from "./utils/action";
-import type { SignInParams } from "./utils/types";
+import { ConnectorAction, connectorActionsToNearApiJsActions, type AddKeyAction } from "./utils/action";
+import type { SignInParams, SignInAndSignMessageParams, AccountWithSignedMessage, AddFunctionCallKeyParams } from "./utils/types";
 import * as nearAPI from "near-api-js";
 
 const { transactions: nearApiTransactions, utils: nearApiUtils } = nearAPI;
@@ -279,12 +279,89 @@ const WalletConnect = async () => {
     }
   };
 
+  const buildAddKeyAction = (addFunctionCallKey: AddFunctionCallKeyParams): AddKeyAction => {
+    const methodNames = addFunctionCallKey.allowMethods.anyMethod === false
+      ? addFunctionCallKey.allowMethods.methodNames
+      : [];
+
+    let allowance: string | undefined;
+    if (addFunctionCallKey.gasAllowance) {
+      allowance = addFunctionCallKey.gasAllowance.kind === "limited"
+        ? addFunctionCallKey.gasAllowance.amount
+        : undefined;
+    }
+
+    return {
+      type: "AddKey",
+      params: {
+        publicKey: addFunctionCallKey.publicKey,
+        accessKey: {
+          permission: {
+            receiverId: addFunctionCallKey.contractId,
+            methodNames,
+            allowance,
+          },
+        },
+      },
+    };
+  };
+
+  const connectAndAddKey = async (addFunctionCallKey: AddFunctionCallKeyParams | undefined, network: string) => {
+    if (await window.selector.walletConnect.getSession()) await disconnect();
+    await connect(network);
+
+    const accounts = await getAccounts(network);
+    if (!accounts.length) throw new Error("Wallet not signed in");
+
+    if (addFunctionCallKey) {
+      const signerId = accounts[0].accountId;
+      const addKeyAction = buildAddKeyAction(addFunctionCallKey);
+      const resolvedTransaction = {
+        signerId,
+        receiverId: signerId,
+        actions: connectorActionsToNearApiJsActions([addKeyAction]),
+      };
+      const signedTx = await requestSignTransaction(resolvedTransaction, network);
+      const signedTxBytes = signedTx.encode();
+      const signedTxBase64 = Buffer.from(signedTxBytes).toString("base64");
+      await provider.sendJsonRpc<FinalExecutionOutcome>("broadcast_tx_commit", [signedTxBase64]);
+    }
+
+    return accounts;
+  };
+
   return {
-    async signIn({ network }: SignInParams) {
+    async signIn({ addFunctionCallKey, network }: SignInParams) {
       try {
-        if (await window.selector.walletConnect.getSession()) await disconnect();
-        await connect(network);
-        return await getAccounts(network);
+        const accounts = await connectAndAddKey(addFunctionCallKey, network);
+        return accounts;
+      } catch (err) {
+        console.error(err);
+        await signOut(network);
+        throw err;
+      }
+    },
+
+    async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<AccountWithSignedMessage[]> {
+      const { network, messageParams } = data;
+      try {
+        const accounts = await connectAndAddKey(data.addFunctionCallKey, network);
+
+        const signedMessage = await requestSignMessage({
+          message: messageParams.message,
+          nonce: Array.from(messageParams.nonce),
+          recipient: messageParams.recipient,
+        }, network);
+
+        return [{
+          accountId: accounts[0].accountId,
+          publicKey: accounts[0].publicKey,
+          signedMessage: {
+            accountId: signedMessage.accountId ?? accounts[0].accountId,
+            publicKey: signedMessage.publicKey ?? "",
+            signature: signedMessage.signature ?? "",
+          },
+        }];
       } catch (err) {
         console.error(err);
         await signOut(network);
