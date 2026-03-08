@@ -120,7 +120,8 @@
         "verifyOwner": false,
         "testnet": true,
         "signDelegateActions": true,
-        "signInAndSignMessage": true
+        "signInAndSignMessage": true,
+        "signInWithFunctionCallKey": true
       },
       "platform": {
         "web": "https://wallet.intear.tech"
