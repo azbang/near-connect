@@ -105,6 +105,7 @@ export interface WalletPermissions {
   clipboardWrite?: boolean;
   usb?: boolean;
   hid?: boolean;
+  bluetooth?: boolean;
 }
 
 export interface SignAndSendTransactionParams {
