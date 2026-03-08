@@ -1,3 +1,12 @@
+# 0.11.1
+
+- Add bluetooth permission for sandbox
+
+# 0.11.0
+
+- Add feature **signInAndSignMessage**
+- Add feature **signInWithFunctionCallKey**
+
 # 0.10.0
 
 - Add **signInAndSignMessage** method

@@ -28,13 +28,13 @@ class IframeExecutor {
 
     window.addEventListener("message", this.handler);
 
-    const iframeAllowedPersimissions = [];
-    if (this.executor.checkPermissions("usb")) iframeAllowedPersimissions.push("usb *;");
-    if (this.executor.checkPermissions("hid")) iframeAllowedPersimissions.push("hid *;");
-    if (this.executor.checkPermissions("clipboardRead")) iframeAllowedPersimissions.push("clipboard-read;");
-    if (this.executor.checkPermissions("clipboardWrite")) iframeAllowedPersimissions.push("clipboard-write;");
-    if (this.executor.checkPermissions("bluetooth")) iframeAllowedPersimissions.push("bluetooth *;");
-    this.iframe.allow = iframeAllowedPersimissions.join(" ");
+    const iframeAllowedPermissions = [];
+    if (this.executor.checkPermissions("usb")) iframeAllowedPermissions.push("usb *;");
+    if (this.executor.checkPermissions("hid")) iframeAllowedPermissions.push("hid *;");
+    if (this.executor.checkPermissions("clipboardRead")) iframeAllowedPermissions.push("clipboard-read;");
+    if (this.executor.checkPermissions("clipboardWrite")) iframeAllowedPermissions.push("clipboard-write;");
+    if (this.executor.checkPermissions("bluetooth")) iframeAllowedPermissions.push("bluetooth *;");
+    this.iframe.allow = iframeAllowedPermissions.join(" ");
     this.iframe.setAttribute("sandbox", "allow-scripts");
 
     getIframeCode({ id: this.origin, executor: this.executor, code }).then((code) => {
