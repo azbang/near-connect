@@ -1,9 +1,23 @@
 {
   "name": "@hot-labs/near-connect",
   "version": "0.11.1",
-  "type": "commonjs",
-  "main": "./build/index.js",
-  "types": "./build/index.d.ts",
+  "type": "module",
+  "types": "./dist/esm/index.d.ts",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "browser": "./dist/umd/browser.global.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    }
+  },
   "license": "MIT",
   "author": "HOT Labs",
   "repository": {
@@ -11,25 +25,25 @@
     "url": "https://github.com/hot-dao/near-selector"
   },
   "homepage": "https://github.com/hot-dao/near-selector",
-  "directories": {
-    "build": "build"
-  },
   "files": [
-    "build/*"
+    "dist"
   ],
   "scripts": {
     "example": "cd example && yarn && yarn start",
     "pre-build": "node build-scripts/updateNearConnectVersionInCode.js",
     "build:wallets": "cd near-wallets && yarn build:wallets",
-    "build": "rm -rf build && yarn pre-build && yarn tsc",
+    "build": "yarn pre-build && tsup && node scripts/fix-cjs-imports.js",
+    "build:tsc": "tsc",
     "prepublish": "yarn build",
     "cdn": "yarn pre-build && vite build",
     "type-check": "tsc --noEmit",
     "type-check-all": "yarn run type-check && cd example && yarn run type-check && cd ../near-wallets && yarn run type-check"
   },
+  "sideEffects": false,
   "devDependencies": {
     "@near-js/transactions": "^2.5.1",
     "@near-js/types": "^2.5.1",
+    "tsup": "^8.5.1",
     "typescript": "^5.2.2",
     "vite": "^7.2.2",
     "vite-plugin-node-polyfills": "^0.24.0"
