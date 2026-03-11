@@ -1,16 +1,9 @@
-import { PublicKey } from "@near-js/crypto";
-import { baseDecode } from "@near-js/utils";
-import {
-  Action,
-  actionCreators,
-  GlobalContractDeployMode,
-  GlobalContractIdentifier,
-} from "@near-js/transactions";
-
-// Fireblocks/near-api-js compatibility imports
-// @ts-ignore - BN.js doesn't have proper ESM types
-import BN from "bn.js";
-import { transactions as nearApiTransactions, utils as nearApiUtils } from "near-api-js";
+// Inline base64 encoder so action.ts stays free of @fastnear/utils (avoids portal resolution issues for non-mnw executors)
+const _bytesToBase64 = (bytes: Uint8Array): string => {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+};
 
 export interface CreateAccountAction {
   type: "CreateAccount";
@@ -97,122 +90,52 @@ export type ConnectorAction =
   | UseGlobalContractAction
   | DeployGlobalContractAction;
 
-export const connectorActionsToNearActions = (actions: ConnectorAction[]): Action[] => {
+/**
+ * Convert ConnectorAction[] to the flat action format expected by @fastnear/utils mapAction().
+ * This has zero @near-js imports — only used by mnw.ts.
+ */
+export const connectorActionsToFastnearActions = (actions: ConnectorAction[]): any[] => {
   return actions.map((action) => {
-    if (!("type" in action)) return action as Action;
+    if (!("type" in action)) return action;
 
-    if (action.type === "FunctionCall") {
-      return actionCreators.functionCall(action.params.methodName, action.params.args as any, BigInt(action.params.gas), BigInt(action.params.deposit));
+    switch (action.type) {
+      case "FunctionCall":
+        return {
+          type: "FunctionCall",
+          methodName: action.params.methodName,
+          args: action.params.args,
+          gas: action.params.gas,
+          deposit: action.params.deposit,
+        };
+      case "Transfer":
+        return { type: "Transfer", deposit: action.params.deposit };
+      case "AddKey":
+        return {
+          type: "AddKey",
+          publicKey: action.params.publicKey,
+          accessKey: {
+            nonce: action.params.accessKey.nonce ?? 0,
+            permission: action.params.accessKey.permission === "FullAccess"
+              ? "FullAccess"
+              : {
+                  receiverId: action.params.accessKey.permission.receiverId,
+                  methodNames: action.params.accessKey.permission.methodNames ?? [],
+                  allowance: action.params.accessKey.permission.allowance,
+                },
+          },
+        };
+      case "DeleteKey":
+        return { type: "DeleteKey", publicKey: action.params.publicKey };
+      case "CreateAccount":
+        return { type: "CreateAccount" };
+      case "DeleteAccount":
+        return { type: "DeleteAccount", beneficiaryId: action.params.beneficiaryId };
+      case "DeployContract":
+        return { type: "DeployContract", codeBase64: _bytesToBase64(action.params.code) };
+      case "Stake":
+        return { type: "Stake", stake: action.params.stake, publicKey: action.params.publicKey };
+      default:
+        throw new Error("Unsupported action type");
     }
-
-    if (action.type === "DeployGlobalContract") {
-      const deployMode =
-        action.params.deployMode === "AccountId" ? new GlobalContractDeployMode({ AccountId: null }) : new GlobalContractDeployMode({ CodeHash: null });
-      return actionCreators.deployGlobalContract(action.params.code, deployMode);
-    }
-
-    if (action.type === "CreateAccount") {
-      return actionCreators.createAccount();
-    }
-
-    if (action.type === "UseGlobalContract") {
-      const contractIdentifier =
-        "accountId" in action.params.contractIdentifier
-          ? new GlobalContractIdentifier({ AccountId: action.params.contractIdentifier.accountId })
-          : new GlobalContractIdentifier({ CodeHash: baseDecode(action.params.contractIdentifier.codeHash) });
-      return actionCreators.useGlobalContract(contractIdentifier);
-    }
-
-    if (action.type === "DeployContract") {
-      return actionCreators.deployContract(action.params.code);
-    }
-
-    if (action.type === "DeleteAccount") {
-      return actionCreators.deleteAccount(action.params.beneficiaryId);
-    }
-
-    if (action.type === "DeleteKey") {
-      return actionCreators.deleteKey(PublicKey.from(action.params.publicKey));
-    }
-
-    if (action.type === "Transfer") {
-      return actionCreators.transfer(BigInt(action.params.deposit));
-    }
-
-    if (action.type === "Stake") {
-      return actionCreators.stake(BigInt(action.params.stake), PublicKey.from(action.params.publicKey));
-    }
-
-    if (action.type === "AddKey") {
-      return actionCreators.addKey(
-        PublicKey.from(action.params.publicKey),
-        action.params.accessKey.permission === "FullAccess"
-          ? actionCreators.fullAccessKey()
-          : actionCreators.functionCallAccessKey(
-              action.params.accessKey.permission.receiverId,
-              action.params.accessKey.permission.methodNames ?? [],
-              BigInt(action.params.accessKey.permission.allowance ?? 0),
-            )
-      );
-    }
-
-    throw new Error("Invalid action");
   });
-};
-
-/**
- * Creates near-api-js compatible actions for Fireblocks/WalletConnect
- * Uses BN.js for BigInt handling to match near-api-js serialization
- */
-const createNearApiJsAction = (action: ConnectorAction): any => {
-  switch (action.type) {
-    case "CreateAccount":
-      return nearApiTransactions.createAccount();
-    case "DeployContract": {
-      const { code } = action.params;
-      return nearApiTransactions.deployContract(code);
-    }
-    case "FunctionCall": {
-      const { methodName, args, gas, deposit } = action.params;
-      return nearApiTransactions.functionCall(methodName, args, new BN(gas) as any, new BN(deposit) as any);
-    }
-    case "Transfer": {
-      const { deposit } = action.params;
-      return nearApiTransactions.transfer(new BN(deposit) as any);
-    }
-    case "Stake": {
-      const { stake, publicKey } = action.params;
-      return nearApiTransactions.stake(new BN(stake) as any, nearApiUtils.PublicKey.from(publicKey));
-    }
-    case "AddKey": {
-      const { publicKey, accessKey } = action.params;
-      const getAccessKey = (permission: AddKeyPermission) => {
-        if (permission === "FullAccess") {
-          return nearApiTransactions.fullAccessKey();
-        }
-        const { receiverId, methodNames = [] } = permission;
-        const allowance = permission.allowance ? (new BN(permission.allowance) as any) : undefined;
-        return nearApiTransactions.functionCallAccessKey(receiverId, methodNames, allowance as any);
-      };
-      return nearApiTransactions.addKey(nearApiUtils.PublicKey.from(publicKey), getAccessKey(accessKey.permission));
-    }
-    case "DeleteKey": {
-      const { publicKey } = action.params;
-      return nearApiTransactions.deleteKey(nearApiUtils.PublicKey.from(publicKey));
-    }
-    case "DeleteAccount": {
-      const { beneficiaryId } = action.params;
-      return nearApiTransactions.deleteAccount(beneficiaryId);
-    }
-    default:
-      throw new Error("Invalid action type");
-  }
-};
-
-/**
- * Converts ConnectorActions to near-api-js compatible actions for Fireblocks
- * This ensures proper transaction serialization for Fireblocks signing
- */
-export const connectorActionsToNearApiJsActions = (actions: ConnectorAction[]): any[] => {
-  return actions.map((action) => createNearApiJsAction(action));
 };
