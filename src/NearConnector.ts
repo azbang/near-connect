@@ -3,11 +3,24 @@ import { NearWalletsPopup } from "./popups/NearWalletsPopup";
 import { LocalStorage, DataStorage } from "./helpers/storage";
 import IndexedDB from "./helpers/indexdb";
 
-import { EventNearWalletInjected, WalletManifest, Network, WalletFeatures, Logger, NearWalletBase, AbstractWalletConnect } from "./types";
+import type {
+  EventMap,
+  EventNearWalletInjected,
+  WalletManifest,
+  Network,
+  WalletFeatures,
+  Logger,
+  NearWalletBase,
+  AbstractWalletConnect,
+  FooterBranding,
+  NearConnector_ConnectOptions,
+  AddFunctionCallKeyParams,
+} from "./types";
+import type { WalletPlugin } from "./types/plugin";
+
 import { ParentFrameWallet } from "./ParentFrameWallet";
 import { InjectedWallet } from "./InjectedWallet";
 import { SandboxWallet } from "./SandboxedWallet";
-import { EventMap } from "./types";
 
 interface NearConnectorOptions {
   providers?: { mainnet?: string[]; testnet?: string[] };
@@ -24,6 +37,11 @@ interface NearConnectorOptions {
   logger?: Logger;
 
   /**
+   * Footer branding for the wallet selector popup. If not provided, default branding will be used. If provided null, footer will be hidden.
+   */
+  footerBranding?: FooterBranding | null;
+
+  /**
    * @deprecated
    * Some wallets allow adding a limited-access key to a contract as soon as the user connects their wallet.
    * This enables the app to sign non-payable transactions without requiring wallet approval each time.
@@ -38,6 +56,18 @@ const defaultManifests = [
   "https://cdn.jsdelivr.net/gh/azbang/hot-connector/repository/manifest.json",
 ];
 
+function createFilterForWalletFeatures(features: Partial<WalletFeatures>) {
+  return (wallet: NearWalletBase) => {
+    if (Object.entries(features).length === 0) return true;
+
+    return Object.entries(features)
+      .filter(([_, value]) => value === true)
+      .every(([key]) => {
+        return wallet.manifest.features?.[key as keyof WalletFeatures] === true;
+      });
+  };
+}
+
 export class NearConnector {
   private storage: DataStorage;
   readonly events: EventEmitter<EventMap>;
@@ -50,9 +80,9 @@ export class NearConnector {
   network: Network = "mainnet";
 
   providers: { mainnet?: string[]; testnet?: string[] } = { mainnet: [], testnet: [] };
-  signInData?: { contractId?: string; methodNames?: Array<string> };
   walletConnect?: Promise<AbstractWalletConnect> | AbstractWalletConnect;
 
+  footerBranding: FooterBranding | null;
   excludedWallets: string[] = [];
   autoConnect?: boolean;
 
@@ -71,8 +101,19 @@ export class NearConnector {
     this.providers = options?.providers ?? { mainnet: [], testnet: [] };
 
     this.excludedWallets = options?.excludedWallets ?? [];
+
     this.features = options?.features ?? {};
-    this.signInData = options?.signIn;
+
+    if (options?.footerBranding !== undefined) {
+      this.footerBranding = options?.footerBranding;
+    } else {
+      this.footerBranding = {
+        icon: "https://pages.near.org/wp-content/uploads/2023/11/NEAR_token.png",
+        heading: "NEAR Connector",
+        link: "https://wallet.near.org",
+        linkText: "Don't have a wallet?",
+      };
+    }
 
     this.whenManifestLoaded = new Promise(async (resolve) => {
       if (options?.manifest == null || typeof options.manifest === "string") {
@@ -101,10 +142,14 @@ export class NearConnector {
       window.addEventListener("message", async (event) => {
         if (event.data.type === "near-wallet-injected") {
           await this.whenManifestLoaded.catch(() => {});
+
           this.wallets = this.wallets.filter((wallet) => wallet.manifest.id !== event.data.manifest.id);
           this.wallets.unshift(new ParentFrameWallet(this, event.data.manifest));
           this.events.emit("selector:walletsChanged", {});
-          if (this.autoConnect) this.connect(event.data.manifest.id);
+
+          if (this.autoConnect) {
+            this.connect({ walletId: event.data.manifest.id });
+          }
         }
       });
     }
@@ -153,12 +198,11 @@ export class NearConnector {
     throw new Error("Failed to load manifest");
   }
 
-  async switchNetwork(network: "mainnet" | "testnet", signInData?: { contractId?: string; methodNames?: Array<string> }) {
+  async switchNetwork(network: "mainnet" | "testnet", connectOptions?: NearConnector_ConnectOptions) {
     if (this.network === network) return;
     await this.disconnect().catch(() => {});
-    if (signInData) this.signInData = signInData;
     this.network = network;
-    await this.connect();
+    await this.connect(connectOptions);
   }
 
   async registerWallet(manifest: WalletManifest) {
@@ -197,11 +241,12 @@ export class NearConnector {
     this.events.emit("selector:walletsChanged", {});
   }
 
-  async selectWallet() {
+  async selectWallet({ features = {} }: { features?: Partial<WalletFeatures> } = {}) {
     await this.whenManifestLoaded.catch(() => {});
     return new Promise<string>((resolve, reject) => {
       const popup = new NearWalletsPopup({
-        wallets: this.availableWallets.map((wallet) => wallet.manifest),
+        footer: this.footerBranding,
+        wallets: this.availableWallets.filter(createFilterForWalletFeatures(features)).map((wallet) => wallet.manifest),
         onRemoveDebugManifest: async (id: string) => this.removeDebugWallet(id),
         onAddDebugManifest: async (wallet: string) => this.registerDebugWallet(wallet),
         onReject: () => (reject(new Error("User rejected")), popup.destroy()),
@@ -212,26 +257,74 @@ export class NearConnector {
     });
   }
 
-  async connect(id?: string) {
+  async connect(input: NearConnector_ConnectOptions = {}) {
+    let walletId = input.walletId;
+    const signMessageParams = input.signMessageParams;
+
     await this.whenManifestLoaded.catch(() => {});
-    if (!id) id = await this.selectWallet();
+
+    if (!walletId) {
+      walletId = await this.selectWallet({
+        features: {
+          signInAndSignMessage: input.signMessageParams != null ? true : undefined,
+          signInWithFunctionCallKey: input.addFunctionCallKey != null ? true : undefined,
+        },
+      });
+    }
 
     try {
-      const wallet = await this.wallet(id);
+      const wallet = await this.wallet(walletId);
       this.logger?.log(`Wallet available to connect`, wallet);
 
-      await this.storage.set("selected-wallet", id);
-      this.logger?.log(`Set preferred wallet, try to signIn`, id);
+      await this.storage.set("selected-wallet", walletId);
+      this.logger?.log(`Set preferred wallet, try to signIn${signMessageParams != null ? " (with signed message)" : ""}`, walletId);
 
-      const accounts = await wallet.signIn({
-        contractId: this.signInData?.contractId,
-        methodNames: this.signInData?.methodNames,
-        network: this.network,
-      });
+      let addFunctionCallKey: AddFunctionCallKeyParams | undefined = undefined;
 
-      if (!accounts?.length) throw new Error("Failed to sign in");
-      this.logger?.log(`Signed in to wallet`, id, accounts);
-      this.events.emit("wallet:signIn", { wallet, accounts, success: true });
+      if (input.addFunctionCallKey != null) {
+        this.logger?.log(`Adding function call access key during sign in with params`, input.addFunctionCallKey);
+
+        // Set default gas allowance if not provided
+        addFunctionCallKey = {
+          ...input.addFunctionCallKey,
+          gasAllowance: input.addFunctionCallKey.gasAllowance ?? {
+            amount: "250000000000000000000000", // 0.25 NEAR in yoctoNEAR
+            kind: "limited",
+          },
+        };
+      }
+
+      if (signMessageParams != null) {
+        const accounts = await wallet.signInAndSignMessage({
+          addFunctionCallKey,
+          messageParams: signMessageParams,
+          network: this.network,
+        });
+
+        if (!accounts?.length) throw new Error("Failed to sign in");
+
+        this.logger?.log(`Signed in to wallet (with signed message)`, walletId, accounts);
+        this.events.emit("wallet:signInAndSignMessage", { wallet, accounts, success: true });
+        this.events.emit("wallet:signIn", {
+          wallet,
+          accounts: accounts.map((account) => ({
+            accountId: account.accountId,
+            publicKey: account.publicKey,
+          })),
+          success: true,
+          source: "signInAndSignMessage",
+        });
+      } else {
+        const accounts = await wallet.signIn({
+          addFunctionCallKey,
+          network: this.network,
+        });
+
+        if (!accounts?.length) throw new Error("Failed to sign in");
+
+        this.logger?.log(`Signed in to wallet`, walletId, accounts);
+        this.events.emit("wallet:signIn", { wallet, accounts, success: true, source: "signIn" });
+      }
       return wallet;
     } catch (e) {
       this.logger?.log("Failed to connect to wallet", e);
@@ -274,6 +367,33 @@ export class NearConnector {
     const wallet = this.wallets.find((wallet) => wallet.manifest.id === id);
     if (!wallet) throw new Error("Wallet not found");
     return wallet;
+  }
+
+  async use(plugin: WalletPlugin): Promise<void> {
+    await this.whenManifestLoaded.catch(() => {});
+
+    this.wallets = this.wallets.map((wallet) => {
+      return new Proxy(wallet, {
+        get(target, prop, receiver) {
+          const originalValue = Reflect.get(target, prop, receiver);
+
+          // If plugin has this method and it's a function on the wallet
+          if (prop in plugin && typeof originalValue === "function") {
+            const pluginMethod = (plugin as any)[prop];
+
+            // Act as middleware, can call next method in line via next()
+            return function (this: any, ...args: any[]) {
+              const next = () => originalValue.apply(target, args);
+              // Pass all args if any exist, otherwise undefined
+              // this ensures next is always the last param
+              return args.length > 0 ? pluginMethod.call(this, ...args, next) : pluginMethod.call(this, undefined, next);
+            };
+          }
+
+          return originalValue;
+        },
+      }) as NearWalletBase;
+    });
   }
 
   on<K extends keyof EventMap>(event: K, callback: (payload: EventMap[K]) => void): void {

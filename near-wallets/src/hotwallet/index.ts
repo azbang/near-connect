@@ -4,6 +4,7 @@ import crypto from "crypto";
 
 import { head, bodyMobile, bodyDesktop } from "./view";
 import { ConnectorAction } from "../utils/action";
+import type { SignInParams } from "../utils/types";
 
 const isMobile = () => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -149,7 +150,7 @@ class NearWallet {
     return [];
   };
 
-  signIn = async (data: any) => {
+  signIn = async (data: SignInParams) => {
     if (data.network === "testnet") throw "HOT Wallet not supported on testnet";
     const result = await HOT.shared.request("near:signIn", {});
     window.selector.storage.set("hot-account", JSON.stringify(result));

@@ -1,8 +1,16 @@
 import { html } from "../helpers/html";
+import { FooterBranding } from "../types";
 import { Popup } from "./Popup";
 
 export class IframeWalletPopup extends Popup<{}> {
-  constructor(readonly delegate: { iframe: HTMLIFrameElement; onApprove: () => void; onReject: () => void }) {
+  constructor(
+    readonly delegate: {
+      iframe: HTMLIFrameElement;
+      footer: FooterBranding | null;
+      onApprove: () => void;
+      onReject: () => void;
+    }
+  ) {
     super(delegate);
   }
 
@@ -20,15 +28,23 @@ export class IframeWalletPopup extends Popup<{}> {
     this.delegate.iframe.style.border = "none";
   }
 
+  get footer() {
+    if (!this.delegate.footer) return "";
+    const { icon, heading } = this.delegate.footer;
+
+    return html`
+      <div class="footer">
+        ${icon ? html`<img src="${icon}" alt="${heading}" />` : ""}
+        <p>${heading}</p>
+      </div>
+    `;
+  }
+
   get dom() {
-    return html` <div class="modal-container">
+    return html`<div class="modal-container">
       <div class="modal-content">
         <div class="modal-body" style="padding: 0; overflow: auto;"></div>
-        <div class="footer">
-          <img src="https://tgapp.herewallet.app/images/hot/hot-icon.png" alt="HOT Connector" />
-          <p>HOT Connector</p>
-          <p class="get-wallet-link">Don't have a wallet?</p>
-        </div>
+        ${this.footer}
       </div>
     </div>`;
   }

@@ -2,6 +2,7 @@
 
 interface Window {
   selector: {
+    nearConnectVersion?: string;
     walletConnect: {
       connect: (params: EngineTypes.ConnectParams) => Promise<SessionTypes.Struct>;
       disconnect: (params: EngineTypes.DisconnectParams) => Promise<void>;

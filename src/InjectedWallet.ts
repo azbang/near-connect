@@ -5,38 +5,53 @@ import {
   Network,
   SignAndSendTransactionParams,
   SignAndSendTransactionsParams,
+  SignDelegateActionsParams,
+  SignDelegateActionsResponse,
   SignedMessage,
   SignMessageParams,
+  type AccountWithSignedMessage,
+  type SignInAndSignMessageParams,
+  type SignInParams,
 } from "./types";
 import { NearConnector } from "./NearConnector";
 import { nearActionsToConnectorActions } from "./actions";
 
-export class InjectedWallet {
-  constructor(readonly connector: NearConnector, readonly wallet: NearWalletBase) {}
+export class InjectedWallet implements NearWalletBase {
+  constructor(
+    readonly connector: NearConnector,
+    readonly wallet: NearWalletBase,
+  ) {}
 
   get manifest() {
     return this.wallet.manifest;
   }
 
-  async signIn(data?: { network?: Network; contractId?: string; methodNames?: Array<string> }): Promise<Array<Account>> {
+  async signIn({ addFunctionCallKey, network }: SignInParams): Promise<Array<Account>> {
     return this.wallet.signIn({
-      network: data?.network || this.connector.network,
-      contractId: data?.contractId,
-      methodNames: data?.methodNames,
+      network: network ?? this.connector.network,
+      addFunctionCallKey,
+    });
+  }
+
+  async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<Array<AccountWithSignedMessage>> {
+    return this.wallet.signInAndSignMessage({
+      network: data?.network ?? this.connector.network,
+      addFunctionCallKey: data.addFunctionCallKey,
+      messageParams: data.messageParams,
     });
   }
 
   async signOut(data?: { network?: Network }): Promise<void> {
-    await this.wallet.signOut({ network: data?.network || this.connector.network });
+    await this.wallet.signOut({ network: data?.network ?? this.connector.network });
   }
 
   async getAccounts(data?: { network?: Network }): Promise<Array<Account>> {
-    return this.wallet.getAccounts({ network: data?.network || this.connector.network });
+    return this.wallet.getAccounts({ network: data?.network ?? this.connector.network });
   }
 
   async signAndSendTransaction(params: SignAndSendTransactionParams): Promise<FinalExecutionOutcome> {
     const actions = nearActionsToConnectorActions(params.actions);
-    const network = params.network || this.connector.network;
+    const network = params.network ?? this.connector.network;
 
     const result = await this.wallet.signAndSendTransaction({ ...params, actions, network });
     if (!result) throw new Error("No result from wallet");
@@ -47,7 +62,7 @@ export class InjectedWallet {
   }
 
   async signAndSendTransactions(params: SignAndSendTransactionsParams): Promise<Array<FinalExecutionOutcome>> {
-    const network = params.network || this.connector.network;
+    const network = params.network ?? this.connector.network;
     const transactions = params.transactions.map((transaction) => ({
       actions: nearActionsToConnectorActions(transaction.actions),
       receiverId: transaction.receiverId,
@@ -62,6 +77,17 @@ export class InjectedWallet {
   }
 
   async signMessage(params: SignMessageParams): Promise<SignedMessage> {
-    return this.wallet.signMessage({ ...params, network: params.network || this.connector.network });
+    return this.wallet.signMessage({ ...params, network: params.network ?? this.connector.network });
+  }
+
+  async signDelegateActions(params: SignDelegateActionsParams): Promise<SignDelegateActionsResponse> {
+    return this.wallet.signDelegateActions({
+      ...params,
+      delegateActions: params.delegateActions.map((delegateAction) => ({
+        ...delegateAction,
+        actions: nearActionsToConnectorActions(delegateAction.actions),
+      })),
+      network: params.network ?? this.connector.network,
+    });
   }
 }

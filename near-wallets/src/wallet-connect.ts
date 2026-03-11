@@ -1,11 +1,12 @@
 import { WalletConnectModal } from "@walletconnect/modal";
-import { Action, createTransaction, SignedTransaction, Transaction } from "@near-js/transactions";
-import { AccessKeyViewRaw, FinalExecutionOutcome } from "@near-js/types";
-import { baseDecode } from "@near-js/utils";
-import { PublicKey } from "@near-js/crypto";
-
+import type { Transaction } from "@near-js/transactions";
+import type { AccessKeyViewRaw, FinalExecutionOutcome } from "@near-js/types";
 import { NearRpc } from "./utils/rpc";
-import { ConnectorAction, connectorActionsToNearActions } from "./utils/action";
+import { ConnectorAction, connectorActionsToNearApiJsActions, type AddKeyAction } from "./utils/action";
+import type { SignInParams, SignInAndSignMessageParams, AccountWithSignedMessage, AddFunctionCallKeyParams } from "./utils/types";
+import * as nearAPI from "near-api-js";
+
+const { transactions: nearApiTransactions, utils: nearApiUtils } = nearAPI;
 
 const WC_METHODS = ["near_signIn", "near_signOut", "near_getAccounts", "near_signTransaction", "near_signTransactions", "near_signMessage"];
 const WC_EVENTS = ["chainChanged", "accountsChanged"];
@@ -104,16 +105,20 @@ const disconnect = async () => {
   });
 };
 
-const getSignatureData = (result: Uint8Array) => {
-  if (result instanceof Uint8Array) {
-    return result;
-  } else if (Array.isArray(result)) {
-    return new Uint8Array(result);
-  } else if (typeof result === "object" && result !== null) {
-    return new Uint8Array(Object.values(result));
-  } else {
-    throw new Error("Unexpected result type from near_signTransaction");
+const getSignatureData = (result: any): Uint8Array => {
+  if (result instanceof Uint8Array) return result;
+  if (Array.isArray(result)) return new Uint8Array(result);
+  if (typeof result === "object" && result !== null) {
+    if ("data" in result && Array.isArray(result.data)) {
+      return new Uint8Array(result.data);
+    }
+    if ("0" in result && typeof (result as any)[0] === "number") {
+      return new Uint8Array(Object.values(result) as any);
+    }
+    return new Uint8Array(Object.values(result) as any);
   }
+
+  throw new Error("Unexpected result type from near_signTransaction");
 };
 
 const WalletConnect = async () => {
@@ -158,7 +163,7 @@ const WalletConnect = async () => {
     });
   };
 
-  const requestSignTransaction = async (transaction: { signerId: string; receiverId: string; actions: Array<Action> }, network: string) => {
+  const requestSignTransaction = async (transaction: { signerId: string; receiverId: string; actions: any[] }, network: string) => {
     const accounts = await requestAccounts(network);
     const account = accounts.find((x: any) => x.accountId === transaction.signerId);
     if (!account) throw new Error("Invalid signer id");
@@ -173,31 +178,44 @@ const WalletConnect = async () => {
       }),
     ]);
 
-    const tx = createTransaction(
+    // Use near-api-js for Fireblocks compatibility
+    const tx = nearApiTransactions.createTransaction(
       transaction.signerId,
-      PublicKey.from(account.publicKey),
+      nearApiUtils.PublicKey.from(account.publicKey),
       transaction.receiverId,
       accessKey.nonce + 1,
       transaction.actions,
-      baseDecode(block.header.hash)
+      nearApiUtils.serialize.base_decode(block.header.hash)
     );
+
+    const encodedTx = tx.encode();
+    const txArray = Array.from(encodedTx);
 
     const result = await window.selector.walletConnect.request({
       topic: (await window.selector.walletConnect.getSession()).topic,
       chainId: `near:${network}`,
       request: {
         method: "near_signTransaction",
-        params: { transaction: tx.encode() },
+        params: { transaction: txArray },
       },
     });
 
     const signatureData = getSignatureData(result);
-    return SignedTransaction.decode(Buffer.from(signatureData));
+    const signedBytes = Buffer.from(signatureData);
+
+    // Verify we can decode the signed transaction
+    const { SignedTransaction: NearApiJsSignedTransaction } = nearAPI.transactions;
+    NearApiJsSignedTransaction.decode(signedBytes);
+
+    // Return a wrapper that provides the bytes when encode() is called
+    return {
+      encode: () => signedBytes,
+    } as any;
   };
 
-  const requestSignTransactions = async (transactions: Array<{ signerId: string; receiverId: string; actions: Array<Action> }>, network: string) => {
+  const requestSignTransactions = async (transactions: Array<{ signerId: string; receiverId: string; actions: any[] }>, network: string) => {
     if (!transactions.length) return [];
-    const txs: Array<Transaction> = [];
+    const txs: Array<any> = [];
     const [block, accounts] = await Promise.all([provider.block({ finality: "final" }), requestAccounts(network)]);
 
     for (let i = 0; i < transactions.length; i += 1) {
@@ -212,14 +230,15 @@ const WalletConnect = async () => {
         public_key: account.publicKey,
       });
 
+      // Use near-api-js for Fireblocks compatibility
       txs.push(
-        createTransaction(
+        nearApiTransactions.createTransaction(
           transaction.signerId,
-          PublicKey.from(account.publicKey),
+          nearApiUtils.PublicKey.from(account.publicKey),
           transaction.receiverId,
           accessKey.nonce + i + 1,
           transaction.actions,
-          baseDecode(block.header.hash)
+          nearApiUtils.serialize.base_decode(block.header.hash)
         )
       );
     }
@@ -235,7 +254,12 @@ const WalletConnect = async () => {
 
     return results.map((result: any) => {
       const signatureData = getSignatureData(result);
-      return SignedTransaction.decode(Buffer.from(signatureData));
+      const signedBytes = Buffer.from(signatureData);
+
+      // Return a wrapper that provides the bytes for RPC transmission
+      return {
+        encode: () => signedBytes,
+      } as any;
     });
   };
 
@@ -255,12 +279,89 @@ const WalletConnect = async () => {
     }
   };
 
+  const buildAddKeyAction = (addFunctionCallKey: AddFunctionCallKeyParams): AddKeyAction => {
+    const methodNames = addFunctionCallKey.allowMethods.anyMethod === false
+      ? addFunctionCallKey.allowMethods.methodNames
+      : [];
+
+    let allowance: string | undefined;
+    if (addFunctionCallKey.gasAllowance) {
+      allowance = addFunctionCallKey.gasAllowance.kind === "limited"
+        ? addFunctionCallKey.gasAllowance.amount
+        : undefined;
+    }
+
+    return {
+      type: "AddKey",
+      params: {
+        publicKey: addFunctionCallKey.publicKey,
+        accessKey: {
+          permission: {
+            receiverId: addFunctionCallKey.contractId,
+            methodNames,
+            allowance,
+          },
+        },
+      },
+    };
+  };
+
+  const connectAndAddKey = async (addFunctionCallKey: AddFunctionCallKeyParams | undefined, network: string) => {
+    if (await window.selector.walletConnect.getSession()) await disconnect();
+    await connect(network);
+
+    const accounts = await getAccounts(network);
+    if (!accounts.length) throw new Error("Wallet not signed in");
+
+    if (addFunctionCallKey) {
+      const signerId = accounts[0].accountId;
+      const addKeyAction = buildAddKeyAction(addFunctionCallKey);
+      const resolvedTransaction = {
+        signerId,
+        receiverId: signerId,
+        actions: connectorActionsToNearApiJsActions([addKeyAction]),
+      };
+      const signedTx = await requestSignTransaction(resolvedTransaction, network);
+      const signedTxBytes = signedTx.encode();
+      const signedTxBase64 = Buffer.from(signedTxBytes).toString("base64");
+      await provider.sendJsonRpc<FinalExecutionOutcome>("broadcast_tx_commit", [signedTxBase64]);
+    }
+
+    return accounts;
+  };
+
   return {
-    async signIn({ network }: any) {
+    async signIn({ addFunctionCallKey, network }: SignInParams) {
       try {
-        if (await window.selector.walletConnect.getSession()) await disconnect();
-        await connect(network);
-        return await getAccounts(network);
+        const accounts = await connectAndAddKey(addFunctionCallKey, network);
+        return accounts;
+      } catch (err) {
+        console.error(err);
+        await signOut(network);
+        throw err;
+      }
+    },
+
+    async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<AccountWithSignedMessage[]> {
+      const { network, messageParams } = data;
+      try {
+        const accounts = await connectAndAddKey(data.addFunctionCallKey, network);
+
+        const signedMessage = await requestSignMessage({
+          message: messageParams.message,
+          nonce: Array.from(messageParams.nonce),
+          recipient: messageParams.recipient,
+        }, network);
+
+        return [{
+          accountId: accounts[0].accountId,
+          publicKey: accounts[0].publicKey,
+          signedMessage: {
+            accountId: signedMessage.accountId ?? accounts[0].accountId,
+            publicKey: signedMessage.publicKey ?? "",
+            signature: signedMessage.signature ?? "",
+          },
+        }];
       } catch (err) {
         console.error(err);
         await signOut(network);
@@ -295,9 +396,14 @@ const WalletConnect = async () => {
       if (!accounts.length) throw new Error("Wallet not signed in");
       const signerId = accounts[0].accountId;
 
-      const resolvedTransaction = { signerId: signerId, receiverId: receiverId, actions: connectorActionsToNearActions(actions) };
+      // Use near-api-js actions for Fireblocks compatibility
+      const resolvedTransaction = { signerId, receiverId, actions: connectorActionsToNearApiJsActions(actions) };
       const signedTx = await requestSignTransaction(resolvedTransaction, network);
-      return provider.sendTransaction(signedTx);
+
+      const signedTxBytes = signedTx.encode();
+      const signedTxBase64 = Buffer.from(signedTxBytes).toString("base64");
+
+      return provider.sendJsonRpc<FinalExecutionOutcome>("broadcast_tx_commit", [signedTxBase64]);
     },
 
     async signAndSendTransactions({ transactions, network }: { transactions: Array<Transaction>; network: string }) {
@@ -308,7 +414,8 @@ const WalletConnect = async () => {
       const resolvedTransactions = transactions.map((x: any) => ({
         signerId: signerId,
         receiverId: x.receiverId,
-        actions: x.actions,
+        // Use near-api-js actions for Fireblocks compatibility
+        actions: connectorActionsToNearApiJsActions(x.actions),
       }));
 
       const signedTxs = await requestSignTransactions(resolvedTransactions, network);

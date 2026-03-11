@@ -1,6 +1,6 @@
 import { html } from "../helpers/html";
 import { parseUrl } from "../helpers/url";
-import { WalletManifest } from "../types";
+import { FooterBranding, WalletManifest } from "../types";
 import { Popup } from "./Popup";
 
 const debugManifest = {
@@ -16,8 +16,10 @@ const debugManifest = {
   features: {
     signMessage: true,
     signInWithoutAddKey: true,
+    signInAndSignMessage: true,
     signAndSendTransaction: true,
     signAndSendTransactions: true,
+    signDelegateActions: true,
   },
   permissions: {
     storage: true,
@@ -29,6 +31,7 @@ export class NearWalletsPopup extends Popup<{ wallets: WalletManifest[]; showSet
   constructor(
     readonly delegate: {
       wallets: WalletManifest[];
+      footer: FooterBranding | null;
       onAddDebugManifest: (wallet: string) => Promise<WalletManifest>;
       onRemoveDebugManifest: (id: string) => Promise<void>;
       onSelect: (id: string) => void;
@@ -104,6 +107,18 @@ export class NearWalletsPopup extends Popup<{ wallets: WalletManifest[]; showSet
     `;
   }
 
+  get footer() {
+    if (!this.delegate.footer) return "";
+    const { icon, heading, link, linkText } = this.delegate.footer;
+    return html`
+      <div class="footer">
+        ${icon ? html`<img src="${icon}" alt="${heading}" />` : ""}
+        <p>${heading}</p>
+        <a class="get-wallet-link" href="${link}" target="_blank">${linkText}</a>
+      </div>
+    `;
+  }
+
   get dom() {
     if (this.state.showSettings) {
       return html`
@@ -128,11 +143,7 @@ export class NearWalletsPopup extends Popup<{ wallets: WalletManifest[]; showSet
               <button class="add-debug-manifest-button">Add</button>
             </div>
 
-            <div class="footer">
-              <img src="https://tgapp.herewallet.app/images/hot/hot-icon.png" alt="HOT Connector" />
-              <p>HOT Connector</p>
-              <p class="get-wallet-link">Don't have a wallet?</p>
-            </div>
+            ${this.footer}
           </div>
         </div>
       `;
@@ -153,11 +164,7 @@ export class NearWalletsPopup extends Popup<{ wallets: WalletManifest[]; showSet
 
         <div class="modal-body">${this.state.wallets.map((wallet: WalletManifest) => this.walletDom(wallet))}</div>
 
-        <div class="footer">
-          <img src="https://tgapp.herewallet.app/images/hot/hot-icon.png" alt="HOT Connector" />
-          <p>HOT Connector</p>
-          <p class="get-wallet-link">Don't have a wallet?</p>
-        </div>
+        ${this.footer}
       </div>
     </div>`;
   }

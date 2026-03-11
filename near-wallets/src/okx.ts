@@ -3,6 +3,7 @@ import { SignedTransaction } from "@near-js/transactions";
 import { isCurrentBrowserSupported } from "./utils/detectBrowser";
 import { connectorActionsToNearActions, ConnectorAction, FunctionCallAction } from "./utils/action";
 import { NearRpc } from "./utils/rpc";
+import type { SignInParams, SignInAndSignMessageParams, AccountWithSignedMessage } from "./utils/types";
 
 const checkExist = async () => {
   try {
@@ -43,12 +44,48 @@ const OKXWallet = async () => {
   };
 
   return {
-    async signIn({ contractId, methodNames }: { contractId: string; methodNames: Array<string> }) {
+    async signIn({ addFunctionCallKey }: SignInParams) {
       try {
         await checkExist();
-        const { accessKey, accountId } = await okx("requestSignIn", { contractId: contractId || "", methodNames });
-        const publicKey = accessKey?.publicKey;
-        return [{ accountId, publicKey: publicKey ? publicKey.toString() : undefined }];
+        const contractId = addFunctionCallKey?.contractId ?? "";
+        const methodNames = addFunctionCallKey?.allowMethods?.anyMethod === false
+          ? addFunctionCallKey.allowMethods.methodNames
+          : undefined;
+        const { accessKey, accountId } = await okx("requestSignIn", { contractId, methodNames });
+        const respPublicKey = accessKey?.publicKey;
+        return [{ accountId, publicKey: respPublicKey ? respPublicKey.toString() : undefined }];
+      } catch (_) {
+        await signOut();
+        throw new Error("Failed to sign in");
+      }
+    },
+
+    async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<AccountWithSignedMessage[]> {
+      try {
+        await checkExist();
+        const contractId = data.addFunctionCallKey?.contractId ?? "";
+        const methodNames = data.addFunctionCallKey?.allowMethods?.anyMethod === false
+          ? data.addFunctionCallKey.allowMethods.methodNames
+          : undefined;
+        const { accessKey, accountId } = await okx("requestSignIn", { contractId, methodNames });
+        const respPublicKey = accessKey?.publicKey;
+
+        const { messageParams } = data;
+        const signedMessage = await okx("signMessage", {
+          message: messageParams.message,
+          recipient: messageParams.recipient,
+          nonce: Array.from(messageParams.nonce),
+        });
+
+        return [{
+          accountId,
+          publicKey: respPublicKey ? respPublicKey.toString() : undefined,
+          signedMessage: {
+            accountId: signedMessage.accountId ?? accountId,
+            publicKey: signedMessage.publicKey ?? "",
+            signature: signedMessage.signature ?? "",
+          },
+        }];
       } catch (_) {
         await signOut();
         throw new Error("Failed to sign in");

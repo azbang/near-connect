@@ -35,6 +35,31 @@ export const SendTx = ({ wallet, network }: IPropsWalletAction) => {
     }
   };
 
+  const signDelegateAction = async () => {
+    setLastResult(undefined);
+    setLastError("");
+    try {
+      const accounts = await wallet.getAccounts()
+      const senderId = accounts[0]?.accountId;
+      if (!senderId) throw new Error("No account available to sign delegate action");
+
+      const { signedDelegateActions } = await wallet.signDelegateActions({ 
+        delegateActions: [{
+          actions: actions.map((a) => buildConnectorAction(a)),
+          receiverId: receiverId,
+        }]
+      });
+      alert(
+        "Successfully signed delegate action. SignedDelegate:\n" +
+          signedDelegateActions
+      );
+      console.log("signedDelegate", signedDelegateActions);
+    } catch (e) {
+      setLastError(e instanceof Error ? e.message : String(e));
+      throw e;
+    }
+  }
+
   let payloadPreview: unknown = null;
   let previewError: string | null = null;
   try {
@@ -121,6 +146,12 @@ export const SendTx = ({ wallet, network }: IPropsWalletAction) => {
         <div className={"flex w-full"}>
           <button className={"input-button w-full"} onClick={() => sendTx()}>
             Send tx
+          </button>
+        </div>
+
+        <div className={"flex w-full"}>
+          <button className={"input-button w-full"} onClick={() => signDelegateAction()}>
+            Sign Delegate Action
           </button>
         </div>
 

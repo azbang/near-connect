@@ -10,10 +10,18 @@ import {
   SignedMessage,
   SignMessageParams,
   WalletManifest,
+  SignDelegateActionsParams,
+  SignDelegateActionsResponse,
+  type AccountWithSignedMessage,
+  type SignInAndSignMessageParams,
+  type SignInParams,
 } from "./types";
 
 export class ParentFrameWallet {
-  constructor(readonly connector: NearConnector, readonly manifest: WalletManifest) {}
+  constructor(
+    readonly connector: NearConnector,
+    readonly manifest: WalletManifest,
+  ) {}
 
   callParentFrame(method: string, params: any) {
     const id = uuid4();
@@ -32,35 +40,45 @@ export class ParentFrameWallet {
     });
   }
 
-  async signIn(data?: { network?: Network; contractId?: string; methodNames?: Array<string> }): Promise<Array<Account>> {
+  async signIn(data?: SignInParams): Promise<Array<Account>> {
     const result = await this.callParentFrame("near:signIn", {
-      network: data?.network || this.connector.network,
-      contractId: data?.contractId,
-      methodNames: data?.methodNames,
+      network: data?.network ?? this.connector.network,
+      addFunctionCallKey: data?.addFunctionCallKey,
     });
 
     if (Array.isArray(result)) return result;
     return [result as Account];
   }
 
+  async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<Array<AccountWithSignedMessage>> {
+    const result = await this.callParentFrame("near:signInAndSignMessage", {
+      network: data?.network ?? this.connector.network,
+      addFunctionCallKey: data?.addFunctionCallKey,
+      messageParams: data.messageParams,
+    });
+
+    if (Array.isArray(result)) return result;
+    return [result as AccountWithSignedMessage];
+  }
+
   async signOut(data?: { network?: Network }): Promise<void> {
-    const args = { ...data, network: data?.network || this.connector.network };
+    const args = { ...data, network: data?.network ?? this.connector.network };
     await this.callParentFrame("near:signOut", args);
   }
 
   async getAccounts(data?: { network?: Network }): Promise<Array<Account>> {
-    const args = { ...data, network: data?.network || this.connector.network };
+    const args = { ...data, network: data?.network ?? this.connector.network };
     return this.callParentFrame("near:getAccounts", args) as Promise<Array<Account>>;
   }
 
   async signAndSendTransaction(params: SignAndSendTransactionParams): Promise<FinalExecutionOutcome> {
     const connectorActions = nearActionsToConnectorActions(params.actions);
-    const args = { ...params, actions: connectorActions, network: params.network || this.connector.network };
+    const args = { ...params, actions: connectorActions, network: params.network ?? this.connector.network };
     return this.callParentFrame("near:signAndSendTransaction", args) as Promise<FinalExecutionOutcome>;
   }
 
   async signAndSendTransactions(params: SignAndSendTransactionsParams): Promise<Array<FinalExecutionOutcome>> {
-    const args = { ...params, network: params.network || this.connector.network };
+    const args = { ...params, network: params.network ?? this.connector.network };
     args.transactions = args.transactions.map((transaction) => ({
       actions: nearActionsToConnectorActions(transaction.actions),
       receiverId: transaction.receiverId,
@@ -70,7 +88,20 @@ export class ParentFrameWallet {
   }
 
   async signMessage(params: SignMessageParams): Promise<SignedMessage> {
-    const args = { ...params, network: params.network || this.connector.network };
+    const args = { ...params, network: params.network ?? this.connector.network };
     return this.callParentFrame("near:signMessage", args) as Promise<SignedMessage>;
+  }
+
+  async signDelegateActions(params: SignDelegateActionsParams): Promise<SignDelegateActionsResponse> {
+    const args = {
+      ...params,
+      delegateActions: params.delegateActions.map((delegateAction) => ({
+        ...delegateAction,
+        actions: nearActionsToConnectorActions(delegateAction.actions),
+      })),
+      network: params.network || this.connector.network,
+    };
+
+    return this.callParentFrame("near:signDelegateActions", args) as Promise<SignDelegateActionsResponse>;
   }
 }

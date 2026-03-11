@@ -34,9 +34,7 @@ export class Popup<T extends Record<string, any>> {
 
     const modalContainer = this.root.querySelector(".modal-container")! as HTMLElement;
     const modalContent = this.root.querySelector(".modal-content")! as HTMLElement;
-    const getWalletLink = this.root.querySelector(".get-wallet-link")! as HTMLElement;
     modalContent.onclick = (e) => e.stopPropagation();
-    getWalletLink.onclick = () => window.open("https://download.hot-labs.org?hotconnector", "_blank");
     modalContainer.onclick = () => {
       this.delegate.onReject();
       this.destroy();

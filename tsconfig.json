@@ -9,13 +9,19 @@
     "declaration": true,
     "sourceMap": true,
     "allowSyntheticDefaultImports": true,
+    "noUnusedParameters": false,
     "target": "ESNext",
     "skipLibCheck": true,
     "module": "CommonJS",
-    "lib": ["ESNext", "dom"],
+    "lib": [
+      "ESNext",
+      "dom"
+    ],
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
     "resolveJsonModule": true
   },
-  "include": ["./src/**/*"]
+  "include": [
+    "./src/**/*"
+  ]
 }
