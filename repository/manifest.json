@@ -210,7 +210,7 @@
       "icon": "https://storage.herewallet.app/upload/179839f01189bc54afea2fd34eb092ddb6d63c97b5c8c9e418317285fd751f0c.webp",
       "description": "Discover the only NEAR wallet you will need: NEAR Mobile, the most secure and comprehensive mobile wallet designed exclusively for the NEAR Blockchain",
       "website": "https://nearmobile.app",
-      "executor": "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/near-mobile.js",
+      "executor": "https://near-mobile-production.aws.peersyst.tech/connector/near-connect.js",
       "type": "sandbox",
       "version": "1.0.0",
 
@@ -221,7 +221,7 @@
         "signInWithFunctionCallKey": true,
         "signAndSendTransaction": true,
         "signAndSendTransactions": true,
-        "testnet": true
+        "testnet": false
       },
 
       "platform": {
@@ -231,7 +231,8 @@
 
       "permissions": {
         "storage": true,
-        "allowsOpen": ["https://nearmobile.app", "https://play.google.com", "https://apps.apple.com"]
+        "location": true,
+        "allowsOpen": ["https://nearmobile.app", "https://play.google.com", "https://apps.apple.com", "https://near-mobile-production.aws.peersyst.tech"]
       }
     },
     {
