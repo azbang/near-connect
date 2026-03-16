@@ -1,17 +1,36 @@
-import { baseEncode } from "@near-js/utils";
-import { QRCode } from "@here-wallet/core/qrcode-strategy";
-import crypto from "crypto";
+import { createQRSvg } from "../utils/qr";
 
 import { head, bodyMobile, bodyDesktop } from "./view";
-import { ConnectorAction } from "../utils/action";
+import type { ConnectorAction } from "../utils/action";
 import type { SignInParams } from "../utils/types";
+
+// Inline base58 encoder (Bitcoin alphabet) — replaces @near-js/utils baseEncode
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function encodeBase58(bytes: Uint8Array): string {
+  if (bytes.length === 0) return "";
+  let zeros = 0;
+  let i = 0;
+  while (i < bytes.length && bytes[i] === 0) { zeros++; i++; }
+  let digits: number[] = [0];
+  for (; i < bytes.length; i++) {
+    let carry = bytes[i];
+    for (let j = 0; j < digits.length; ++j) {
+      carry += digits[j] << 8;
+      digits[j] = carry % 58;
+      carry = (carry / 58) | 0;
+    }
+    while (carry > 0) { digits.push(carry % 58); carry = (carry / 58) | 0; }
+  }
+  while (digits.length > 0 && digits[digits.length - 1] === 0) digits.pop();
+  let result = "";
+  for (let k = 0; k < zeros; k++) result += BASE58_ALPHABET[0];
+  for (let q = digits.length - 1; q >= 0; --q) result += BASE58_ALPHABET[digits[q]];
+  return result;
+}
 
 const isMobile = () => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };
-
-const logoImage = new Image();
-logoImage.src = "https://hot-labs.org/hot-widget/icon.svg";
 
 const renderUI = () => {
   const root = document.createElement("div");
@@ -64,17 +83,20 @@ class HOT {
     const origin = window.selector.location;
     const timestamp = await this.getTimestamp().catch(() => Date.now());
 
-    const query = baseEncode(
-      JSON.stringify({
-        ...request,
-        deadline: timestamp + 60_000,
-        id: uuid4(),
-        $hot: true,
-        origin,
-      })
+    const query = encodeBase58(
+      new TextEncoder().encode(
+        JSON.stringify({
+          ...request,
+          deadline: timestamp + 60_000,
+          id: uuid4(),
+          $hot: true,
+          origin,
+        })
+      )
     );
 
-    const hashsum = crypto.createHash("sha1").update(query).digest("hex");
+    const hashBuffer = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(query));
+    const hashsum = [...new Uint8Array(hashBuffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
     return { requestId: hashsum, query };
   }
 
@@ -99,30 +121,7 @@ class HOT {
     window.selector.ui.showIframe();
     const requestId = await this.createRequest({ method, request });
     const link = `hotcall-${requestId}`;
-    const qrcode = new QRCode({
-      value: `https://app.hot-labs.org/link?${link}`,
-      logo: logoImage,
-      size: 140,
-      radius: 0.8,
-      ecLevel: "H",
-
-      fill: {
-        type: "linear-gradient",
-        position: [0, 0, 1, 1],
-        colorStops: [
-          [0, "#fff"],
-          [0.34, "#fff"],
-          [1, "#fff"],
-        ],
-      },
-
-      withLogo: true,
-      imageEcCover: 0.3,
-      quiet: 1,
-    });
-
-    qrcode.render();
-    qr?.appendChild(qrcode.canvas);
+    qr!.appendChild(createQRSvg(`https://app.hot-labs.org/link?${link}`, 140));
 
     // @ts-ignore
     window.openTelegram = () => window.selector.open(`https://t.me/hot_wallet/app?startapp=${link}`); // @ts-ignore

@@ -1,6 +1,4 @@
-import { PublicKey } from "@near-js/crypto";
-import { baseEncode } from "@near-js/utils";
-import { Signer } from "@near-js/signers";
+import { baseEncode } from "near-api-js";
 
 import type { ConnectorAction, AddKeyAction } from "../utils/action";
 import { signAndSendTransactionsHandler } from "./helper";
@@ -40,35 +38,10 @@ const Nightly = async () => {
     if (!accountId) return [];
 
     if (publicKey.ed25519Key) {
-      return [{ accountId, publicKey: `ed25519:${baseEncode(publicKey.ed25519Key.data)}` }];
+      return [{ accountId, publicKey: `ed25519:${baseEncode(new Uint8Array(publicKey.ed25519Key.data))}` }];
     }
 
-    return [{ accountId, publicKey: `ed25519:${baseEncode(publicKey.data)}` }];
-  };
-
-  const signer: Signer = {
-    createKey: () => {
-      throw new Error("Not implemented");
-    },
-
-    getPublicKey: async (accountId) => {
-      const accounts = await getAccounts();
-      const account = accounts.find((a) => a.accountId === accountId);
-      if (!account) throw new Error("Failed to find public key for account");
-      return PublicKey.from(account.publicKey!);
-    },
-
-    signMessage: async (message, accountId) => {
-      const accounts = await getAccounts();
-      const account = accounts.find((a) => a.accountId === accountId);
-
-      if (!account) {
-        throw new Error("Failed to find account for signing");
-      }
-
-      const signedTx = await window.selector.external("nightly.near", "signTransaction", message);
-      return { signature: signedTx.signature.data, publicKey: signedTx.publicKey };
-    },
+    return [{ accountId, publicKey: `ed25519:${baseEncode(new Uint8Array(publicKey.data))}` }];
   };
 
   const buildAddKeyAction = (addFunctionCallKey: AddFunctionCallKeyParams): AddKeyAction => {
@@ -109,10 +82,11 @@ const Nightly = async () => {
 
     if (addFunctionCallKey) {
       const signerId = accounts[0].accountId;
+      const publicKey = accounts[0].publicKey;
       const addKeyAction = buildAddKeyAction(addFunctionCallKey);
       await signAndSendTransactionsHandler(
         [{ signerId, receiverId: signerId, actions: [addKeyAction] }],
-        signer,
+        publicKey,
         networks[network],
       );
     }
@@ -181,7 +155,8 @@ const Nightly = async () => {
       if (!accounts.length) throw new Error("Wallet not signed in");
 
       const signerId = accounts[0].accountId;
-      return (await signAndSendTransactionsHandler([{ signerId, receiverId, actions }], signer, networks[network]))[0];
+      const publicKey = accounts[0].publicKey;
+      return (await signAndSendTransactionsHandler([{ signerId, receiverId, actions }], publicKey, networks[network]))[0];
     },
 
     async signAndSendTransactions({ transactions, network }: { transactions: { receiverId: string; actions: ConnectorAction[] }[]; network: string }) {
@@ -190,15 +165,16 @@ const Nightly = async () => {
       if (!accounts.length) throw new Error("Wallet not signed in");
 
       const signerId = accounts[0].accountId;
+      const publicKey = accounts[0].publicKey;
       const list = transactions.map((t: any) => ({ ...t, signerId }));
-      return await signAndSendTransactionsHandler(list, signer, networks[network]);
+      return await signAndSendTransactionsHandler(list, publicKey, networks[network]);
     },
 
     async getPublicKey() {
       const accounts = await getAccounts();
       const account = accounts[0];
       if (!account) throw new Error("Failed to find public key for account");
-      return PublicKey.from(account.publicKey!);
+      return account.publicKey;
     },
 
     async signDelegateAction(delegateAction: any) {

@@ -1,5 +1,4 @@
 import { EventEmitter } from "./helpers/events";
-import { NearWalletsPopup } from "./popups/NearWalletsPopup";
 import { LocalStorage, DataStorage } from "./helpers/storage";
 import IndexedDB from "./helpers/indexdb";
 
@@ -20,7 +19,6 @@ import type { WalletPlugin } from "./types/plugin";
 
 import { ParentFrameWallet } from "./ParentFrameWallet";
 import { InjectedWallet } from "./InjectedWallet";
-import { SandboxWallet } from "./SandboxedWallet";
 
 interface NearConnectorOptions {
   providers?: { mainnet?: string[]; testnet?: string[] };
@@ -208,6 +206,7 @@ export class NearConnector {
   async registerWallet(manifest: WalletManifest) {
     if (manifest.type !== "sandbox") throw new Error("Only sandbox wallets are supported");
     if (this.wallets.find((wallet) => wallet.manifest.id === manifest.id)) return;
+    const { SandboxWallet } = await import("./SandboxedWallet");
     this.wallets.push(new SandboxWallet(this, manifest));
     this.events.emit("selector:walletsChanged", {});
   }
@@ -226,6 +225,7 @@ export class NearConnector {
     if (this.wallets.find((wallet) => wallet.manifest.id === manifest.id)) throw new Error("Wallet already registered");
 
     manifest.debug = true;
+    const { SandboxWallet } = await import("./SandboxedWallet");
     this.wallets.unshift(new SandboxWallet(this, manifest));
     this.events.emit("selector:walletsChanged", {});
 
@@ -243,6 +243,7 @@ export class NearConnector {
 
   async selectWallet({ features = {} }: { features?: Partial<WalletFeatures> } = {}) {
     await this.whenManifestLoaded.catch(() => {});
+    const { NearWalletsPopup } = await import("./popups/NearWalletsPopup");
     return new Promise<string>((resolve, reject) => {
       const popup = new NearWalletsPopup({
         footer: this.footerBranding,
