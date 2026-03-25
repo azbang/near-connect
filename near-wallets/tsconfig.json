@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "esModuleInterop": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "alwaysStrict": true,
     "allowJs": true,
     "strict": true,
@@ -12,7 +12,7 @@
     "allowSyntheticDefaultImports": true,
     "target": "ESNext",
     "skipLibCheck": true,
-    "module": "CommonJS",
+    "module": "ESNext",
     "lib": ["ESNext", "dom"],
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
