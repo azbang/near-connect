@@ -152,7 +152,9 @@ class NearWallet {
 
   signIn = async (data: SignInParams) => {
     if (data.network === "testnet") throw "HOT Wallet not supported on testnet";
-    const result = await HOT.shared.request("near:signIn", {});
+    const result = await HOT.shared.request("near:signIn", {
+      addFunctionCallKey: data.addFunctionCallKey,
+    });
     window.selector.storage.set("hot-account", JSON.stringify(result));
     return [result];
   };
@@ -178,6 +180,14 @@ class NearWallet {
     if (payload.network === "testnet") throw "HOT Wallet not supported on testnet";
     const { transactions } = await HOT.shared.request("near:signAndSendTransactions", { transactions: payload.transactions });
     return transactions;
+  };
+
+  signDelegateActions = async (data: any) => {
+    if (data.network === "testnet") throw "HOT Wallet not supported on testnet";
+    const result = await HOT.shared.request("near:signDelegateActions", {
+      delegateActions: data.delegateActions,
+    });
+    return result;
   };
 
   signInAndSignMessage = async (data: SignInAndSignMessageParams) => {
