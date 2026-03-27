@@ -4,7 +4,7 @@ import crypto from "crypto";
 
 import { head, bodyMobile, bodyDesktop } from "./view";
 import { ConnectorAction } from "../utils/action";
-import type { SignInParams } from "../utils/types";
+import type { SignInParams, SignInAndSignMessageParams } from "../utils/types";
 
 const isMobile = () => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -178,6 +178,19 @@ class NearWallet {
     if (payload.network === "testnet") throw "HOT Wallet not supported on testnet";
     const { transactions } = await HOT.shared.request("near:signAndSendTransactions", { transactions: payload.transactions });
     return transactions;
+  };
+
+  signInAndSignMessage = async (data: SignInAndSignMessageParams) => {
+    if (data.network === "testnet") throw "HOT Wallet not supported on testnet";
+    const result = await HOT.shared.request("near:signInAndSignMessage", {
+      messageParams: {
+        message: data.messageParams.message,
+        recipient: data.messageParams.recipient,
+        nonce: Array.from(data.messageParams.nonce),
+      },
+    });
+    window.selector.storage.set("hot-account", JSON.stringify({ accountId: result.accountId, publicKey: result.publicKey }));
+    return [result];
   };
 }
 
