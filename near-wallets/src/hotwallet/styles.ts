@@ -48,6 +48,16 @@ input::-webkit-inner-spin-button {
   margin: 0;
 }
 
+.logo {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin: 0 auto;
+  margin-bottom: 16px;
+  margin-top: auto;
+}
+
 .popup {
   width: 100%;
   height: 100%;
@@ -144,6 +154,50 @@ input::-webkit-inner-spin-button {
   ouline: none;
 }
 
+.button.simple {
+  background: var(--text-primary, #ebdedc);
+  border: 1px solid var(--text-primary, #ebdedc);
+  color: var(--text-dark-dark, #2c3034);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.button.simple.reverse {
+  background: transparent;
+  color: var(--text-primary, #ebdedc);
+}
+
+.get-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--surface-common-container--low, #262729);
+  cursor: pointer;
+  width: 100%;
+  text-decoration: none;
+  margin-top: auto;
+}
+
+.get-button-text {
+  font-size: 14px;
+  font-weight: 400 !important;
+  line-height: 18px;
+  margin: 0;
+}
+
+.get-button-green {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 10px;
+  gap: 4px;
+  border-radius: 99px;
+  border: 1px solid var(--text-green, #77c7bd);
+  color: var(--text-green, #77c7bd);
+}
+
 .h4 {
   font-family: "Cabinet Grotesk";
   font-style: normal;
@@ -198,6 +252,12 @@ input::-webkit-inner-spin-button {
   font-weight: 500;
   line-height: 20px;
   margin: 0;
+}
+
+.text.description {
+  margin-top: 6px;
+  color: var(--text-primary, #ebdedc);
+  font-weight: 400;
 }
 
 .text a {
