@@ -248,7 +248,7 @@
       "description": "Web wallet for NEAR.",
       "website": "https://yourdapp.example.com",
       "version": "1.0.0",
-      "executor": "https://raw.githubusercontent.com/beneviolabs/privy-near-connect/refs/heads/build/executor.js",
+      "executor": "https://raw.githubusercontent.com/beneviolabs/privy-near-connect/refs/heads/release/executor.js",
       "type": "sandbox",
       "platform": {
         "web": "https://yourdapp.example.com"
