@@ -128,7 +128,7 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
       })();
 
       const showPrompt = async (args) => {
-        const root = document.getElementById("root");
+        const root = document.getElementById("root");   
         root.style.display = "flex";
         root.innerHTML = \`
           <div class="prompt-container">
@@ -152,13 +152,13 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
           this.closed = false;
           this.windowIdPromise = window.selector.call("open", { url, features });
 
-          window.addEventListener("message", async (event) => {
+          window.addEventListener("message", async (event) => {            
             if (event.data.origin !== "${uuid}") return;
             if (!event.data.method?.startsWith("proxy-window:")) return;
             const method = event.data.method.replace("proxy-window:", "");
             if (method === "closed" && event.data.windowId === await this.id()) this.closed = true;
           });
-        }
+        } 
 
         async id() {
           return await this.windowIdPromise;
@@ -181,7 +181,7 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
         wallet: null,
         location: "${window.location.href}",
         nearConnectVersion: "${NEAR_CONNECT_VERSION}",
-
+        
         outerHeight: ${window.outerHeight},
         screenY: ${window.screenY},
         outerWidth: ${window.outerWidth},
@@ -217,7 +217,7 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
             return window.selector.call("walletConnect.getSession", {});
           },
         },
-
+      
         async ready(wallet) {
           wallet.manifest = ${JSON.stringify(manifest)};
           window.parent.postMessage({ method: "wallet-ready", origin: "${uuid}" }, "*");
@@ -242,10 +242,10 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
         },
 
         panelClosed(windowId) {
-          window.parent.postMessage({
-            method: "panel.closed",
-            origin: "${uuid}",
-            result: { windowId }
+          window.parent.postMessage({ 
+            method: "panel.closed", 
+            origin: "${uuid}", 
+            result: { windowId } 
           }, "*");
         },
 
@@ -281,11 +281,11 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
           async set(key, value) {
             await window.selector.call("storage.set", { key, value });
           },
-
+      
           async get(key) {
             return await window.selector.call("storage.get", { key });
           },
-
+      
           async remove(key) {
             await window.selector.call("storage.remove", { key });
           },
@@ -299,17 +299,17 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
       window.addEventListener("message", async (event) => {
         if (event.data.origin !== "${uuid}") return;
         if (!event.data.method?.startsWith("wallet:")) return;
-
+      
         const wallet = window.selector.wallet;
         const method = event.data.method.replace("wallet:", "");
         const payload = { id: event.data.id, origin: "${uuid}", method };
-
+      
         if (wallet == null || typeof wallet[method] !== "function") {
           const data = { ...payload, status: "failed", result: "Method not found" };
           window.parent.postMessage(data, "*");
           return;
         }
-
+        
         try {
           const result = await wallet[method](event.data.params);
           window.parent.postMessage({ ...payload, status: "success", result }, "*");
