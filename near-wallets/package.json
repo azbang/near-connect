@@ -11,9 +11,8 @@
   "homepage": "https://github.com/hot-dao/near-selector",
   "scripts": {
     "postinstall": "patch-package",
-    "build:wallets": "yarn build:hotwallet && yarn build:mnw && yarn build:meteor && yarn build:wallet-connect && yarn build:nightly && yarn build:okx",
+    "build:wallets": "yarn build:mnw && yarn build:meteor && yarn build:wallet-connect && yarn build:nightly && yarn build:okx",
     "build:wallet-connect": "PACKAGE=wallet-connect vite build",
-    "build:hotwallet": "PACKAGE=hotwallet vite build",
     "build:nightly": "PACKAGE=nightly vite build",
     "build:meteor": "PACKAGE=meteor vite build",
     "build:okx": "PACKAGE=okx vite build",
