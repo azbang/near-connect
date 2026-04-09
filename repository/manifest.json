@@ -221,6 +221,9 @@
         "signInWithFunctionCallKey": true,
         "signAndSendTransaction": true,
         "signAndSendTransactions": true,
+        "signDelegateActions": true,
+        "verifyOwner": false,
+        "mainnet": true,
         "testnet": false
       },
 
