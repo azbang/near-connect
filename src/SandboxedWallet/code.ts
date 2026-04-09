@@ -219,6 +219,7 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
         },
       
         async ready(wallet) {
+          wallet.manifest = ${JSON.stringify(manifest)};
           window.parent.postMessage({ method: "wallet-ready", origin: "${uuid}" }, "*");
           window.selector.wallet = wallet;
         },

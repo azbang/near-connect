@@ -244,6 +244,38 @@
         ]
       }
     },
+        {
+      "id": "myprivywallet",
+      "name": "My Privy Wallet",
+      "icon": "https://peerfolio.app/icon.png",
+      "description": "Web wallet for NEAR.",
+      "website": "https://yourdapp.example.com",
+      "version": "1.0.0",
+      "executor": "https://raw.githubusercontent.com/beneviolabs/privy-near-connect/refs/heads/release/executor.js",
+      "type": "sandbox",
+      "platform": {
+        "web": "https://yourdapp.example.com"
+      },
+      "features": {
+        "signMessage": true,
+        "signInWithoutAddKey": true,
+        "signInAndSignMessage": true,
+        "signInWithFunctionCallKey": true,
+        "signAndSendTransaction": true,
+        "signAndSendTransactions": true,
+        "mainnet": true,
+        "testnet": true
+      },
+      "permissions": {
+        "storage": true,
+        "allowsOpen": [
+          "https://yourdapp.example.com/"
+        ]
+      },
+      "metadata": {
+        "signPageURL": "https://yourdapp.example.com/sign"
+      }
+    },
     {
       "id": "trezu-wallet",
       "name": "Trezu Wallet",
