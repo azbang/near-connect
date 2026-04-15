@@ -68,6 +68,12 @@ function createFilterForWalletFeatures(features: Partial<WalletFeatures>) {
   };
 }
 
+function hasRequiredPrivyMetadata(wallet: WalletManifest) {
+  if (!wallet.permissions.isPrivyConnect) return true;
+  const signPageURL = wallet.metadata?.["signPageURL"];
+  return typeof signPageURL === "string" && signPageURL.length > 0;
+}
+
 export class NearConnector {
   private storage: DataStorage;
   readonly events: EventEmitter<EventMap>;
@@ -128,6 +134,7 @@ export class NearConnector {
       this.manifest.wallets = this.manifest.wallets.filter((wallet) => {
         // Remove wallet with walletConnect permission but no projectId is provided
         if (wallet.permissions.walletConnect && !this.walletConnect) return false;
+        if (!hasRequiredPrivyMetadata(wallet)) return false;
         if (set.has(wallet.id)) return false; // excluded wallets
         return true;
       });
@@ -207,6 +214,7 @@ export class NearConnector {
 
   async registerWallet(manifest: WalletManifest) {
     if (manifest.type !== "sandbox") throw new Error("Only sandbox wallets are supported");
+    if (!hasRequiredPrivyMetadata(manifest)) throw new Error("Privy Connector wallets must have metadata.signPageURL");
     if (this.wallets.find((wallet) => wallet.manifest.id === manifest.id)) return;
     this.wallets.push(new SandboxWallet(this, manifest));
     this.events.emit("selector:walletsChanged", {});
@@ -223,6 +231,7 @@ export class NearConnector {
     if (!manifest.executor) throw new Error("Manifest must have an executor");
     if (!manifest.features) throw new Error("Manifest must have features");
     if (!manifest.permissions) throw new Error("Manifest must have permissions");
+    if (!hasRequiredPrivyMetadata(manifest)) throw new Error("Privy Connector wallets must have metadata.signPageURL");
     if (this.wallets.find((wallet) => wallet.manifest.id === manifest.id)) throw new Error("Wallet already registered");
 
     manifest.debug = true;

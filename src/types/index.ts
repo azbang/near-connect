@@ -94,12 +94,15 @@ export interface SignedMessage {
   signature: string;
 }
 
+export type WalletManifestMetadata = Record<string, unknown>;
+
 export type EventNearWalletInjected = CustomEvent<NearWalletBase>;
 
 export interface WalletPermissions {
   storage?: boolean;
   external?: string[];
   walletConnect?: boolean;
+  isPrivyConnect?: boolean;
   allowsOpen?: string[];
   clipboardRead?: boolean;
   clipboardWrite?: boolean;
@@ -147,6 +150,7 @@ export interface WalletManifest {
   type: "sandbox" | "injected";
   permissions: WalletPermissions;
   features: WalletFeatures;
+  metadata?: WalletManifestMetadata;
   debug?: boolean;
 }
 
