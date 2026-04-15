@@ -175,6 +175,7 @@ interface NearSelector {
 - `{ "allowsOpen": ["https://wallet.app"] }` Use window.selector.open for `allow` domains
 - `{ "location": true }`: Use window.selector.location for initial url from dapp
 - `{ "walletConnect": true }`: Use window.selector.walletConnect for use client
+- `{ "isPrivyConnect": true }`: Privy wallets must set `manifest.metadata.signPageURL`
 
 ## Manifest features
 
@@ -221,6 +222,50 @@ window.addEventListener("near-selector-ready", () => {
   window.dispatchEvent(new CustomEvent("near-wallet-injected", { detail: new NearWallet() }));
 });
 ```
+
+## Privy Connector based wallets
+
+For a Privy-based wallet, set `permissions.isPrivyConnect` and provide the signing page URL in `metadata.signPageURL`:
+
+```json
+{
+  "id": "myprivywallet",
+  "name": "My Privy Wallet",
+  "icon": "https://yourdapp.example.app/icon.png",
+  "description": "Web wallet for NEAR.",
+  "website": "https://yourdapp.example.com",
+  "version": "1.0.0",
+  "executor": "https://raw.githubusercontent.com/beneviolabs/privy-near-connect/refs/heads/release/executor.js",
+  "type": "sandbox",
+  "platform": {
+    "web": "https://yourdapp.example.com"
+  },
+  "features": {
+    "signMessage": true,
+    "signInWithoutAddKey": true,
+    "signInAndSignMessage": true,
+    "signInWithFunctionCallKey": true,
+    "signAndSendTransaction": true,
+    "signAndSendTransactions": true,
+    "mainnet": true,
+    "testnet": true
+  },
+  "permissions": {
+    "storage": true,
+    // important
+    "isPrivyConnect": true,
+    "allowsOpen": [
+      "https://yourdapp.example.com/"
+    ]
+  },
+  "metadata": {
+    // important
+    "signPageURL": "https://yourdapp.example.com/sign"
+  }
+}
+```
+
+For the full SDK see [beneviolabs/privy-near-connect](https://github.com/beneviolabs/privy-near-connect/tree/main).
 
 ## Background and future audit scope
 
