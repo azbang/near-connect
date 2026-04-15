@@ -231,14 +231,14 @@ For a Privy-based wallet, set `permissions.isPrivyConnect` and provide the signi
 {
   "id": "myprivywallet",
   "name": "My Privy Wallet",
-  "icon": "https://yourdapp.example.app/icon.png",
+  "icon": "https://mywallet.example.app/icon.png",
   "description": "Web wallet for NEAR.",
-  "website": "https://yourdapp.example.com",
+  "website": "https://mywallet.example.com",
   "version": "1.0.0",
   "executor": "https://raw.githubusercontent.com/beneviolabs/privy-near-connect/refs/heads/release/executor.js",
   "type": "sandbox",
   "platform": {
-    "web": "https://yourdapp.example.com"
+    "web": "https://mywallet.example.com"
   },
   "features": {
     "signMessage": true,
@@ -255,12 +255,12 @@ For a Privy-based wallet, set `permissions.isPrivyConnect` and provide the signi
     // important
     "isPrivyConnect": true,
     "allowsOpen": [
-      "https://yourdapp.example.com/"
+      "https://mywallet.example.com/"
     ]
   },
   "metadata": {
     // important
-    "signPageURL": "https://yourdapp.example.com/sign"
+    "signPageURL": "https://mywallet.example.com/sign"
   }
 }
 ```
