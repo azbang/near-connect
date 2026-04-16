@@ -16,22 +16,36 @@ export const head = /* html */ `
 
 export const bodyMobile = /* html */ `
     <div class="popup">
-      <h2 class="title">Approve in <span>App</span></h2>
+
+      <img src="https://storage.herewallet.app/upload/3390b7e4e15fed4122572898712bdf4c6ede862e36150203deecacc4f8bbe5ae.png" alt="HOT Wallet" class="logo" />
+      <h2 class="title">Approve in <span>HOT Wallet</span></h2>
+
+      <p class="text description">
+        Open and continue <br/>
+        in the Mobile App or Telegram app
+      </p>
 
       <div style="display: flex; gap: 12px;">
-        <button class="button" style="white-space: nowrap; width: 140px; margin-top: 16px; margin-bottom: 32px" onclick="window.openMobile()">
+        <button class="button simple" style="white-space: nowrap; width: 160px; margin-top: 16px; margin-bottom: 32px" onclick="window.openMobile()">
            Open Mobile
         </button>
 
-        <button class="button" style="white-space: nowrap; width: 140px; margin-top: 16px; margin-bottom: 32px" onclick="window.openTelegram()">
+        <button class="button simple reverse" style="white-space: nowrap; width: 160px; margin-top: 16px; margin-bottom: 32px" onclick="window.openTelegram()">
            Open Telegram
         </button>
       </div>
 
-      <p class="text">
-        Don’t have a wallet?<br />
-        <a target="_blank" href="https://hot-labs.org/wallet/">Get extension • iOS • Android</a>
-      </p>
+      <a class="get-button" href="https://hot-labs.org/wallet/" target="_blank">
+        <p class="text get-button-text">
+          Don’t have HOT wallet?
+        </p>
+        <div class="get-button-green">
+          Get
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="#77c7bd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </a>
     </div>
 `;
 
