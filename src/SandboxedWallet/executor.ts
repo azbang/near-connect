@@ -188,6 +188,28 @@ class SandboxExecutor {
       return;
     }
 
+    if (event.data.method === "clipboard.writeText") {
+      this.assertPermissions(iframe, "clipboardWrite", event);
+      try {
+        await navigator.clipboard.writeText(event.data.params.text);
+        success(null);
+      } catch (e) {
+        failed(e);
+      }
+      return;
+    }
+
+    if (event.data.method === "clipboard.readText") {
+      this.assertPermissions(iframe, "clipboardRead", event);
+      try {
+        const text = await navigator.clipboard.readText();
+        success(text);
+      } catch (e) {
+        failed(e);
+      }
+      return;
+    }
+
     if (event.data.method === "external") {
       this.assertPermissions(iframe, "external", event);
       try {
