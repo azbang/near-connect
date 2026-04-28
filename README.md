@@ -93,10 +93,10 @@ Some wallets allow adding a limited-access key to a contract as soon as the user
 
 This library supports two types of actions when using methods like `signAndSendTransaction`:
 
-1. **near-wallet-selector Action format**  
+1. **near-wallet-selector Action format**
    For backward compatibility, you can use actions in the same format as [near-wallet-selector], with all action types defined in [`./src/actions/types`](./src/actions/types.ts) (such as FunctionCall, Transfer, AddKey, etc.).
 
-2. **near-api-js actionsCreator format**  
+2. **near-api-js actionsCreator format**
    You can also use actions created via the `actionsCreator` functions from `near-api-js` (for example, `transactions.functionCall(...)` and other actions from the package).
 
 You can use the old action format or the near-api-js format (recommended).
@@ -175,7 +175,6 @@ interface NearSelector {
 - `{ "allowsOpen": ["https://wallet.app"] }` Use window.selector.open for `allow` domains
 - `{ "location": true }`: Use window.selector.location for initial url from dapp
 - `{ "walletConnect": true }`: Use window.selector.walletConnect for use client
-- `{ "isPrivyConnect": true }`: Privy wallets must set `manifest.metadata.signPageURL`
 
 ## Manifest features
 
@@ -225,7 +224,13 @@ window.addEventListener("near-selector-ready", () => {
 
 ## Privy Connector based wallets
 
-For a Privy-based wallet, set `permissions.isPrivyConnect` and provide the signing page URL in `metadata.signPageURL`:
+Privy helps developers build self-custodial wallets on top of their
+[TEE wallet infra](https://docs.privy.io/security/wallet-infrastructure/architecture)
+along with web2 auth methods for users (email, phone, social).
+
+This SDK [beneviolabs/privy-near-connect](https://github.com/beneviolabs/privy-near-connect/tree/main) allows you to integrate wallets you build with Privy into the NEAR Connect wallet interface.
+
+To do this for a wallet you build per the SDK, provide the signing page URL in `metadata.signPageURL`:
 
 ```json
 {
@@ -252,8 +257,6 @@ For a Privy-based wallet, set `permissions.isPrivyConnect` and provide the signi
   },
   "permissions": {
     "storage": true,
-    // important
-    "isPrivyConnect": true,
     "allowsOpen": [
       "https://mywallet.example.com/"
     ]
@@ -265,7 +268,7 @@ For a Privy-based wallet, set `permissions.isPrivyConnect` and provide the signi
 }
 ```
 
-For the full SDK see [beneviolabs/privy-near-connect](https://github.com/beneviolabs/privy-near-connect/tree/main).
+.
 
 ## Background and future audit scope
 
