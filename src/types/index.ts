@@ -147,7 +147,6 @@ export interface WalletManifest {
   type: "sandbox" | "injected";
   permissions: WalletPermissions;
   features: WalletFeatures;
-  metadata?: Record<string, unknown>;
   debug?: boolean;
 }
 
