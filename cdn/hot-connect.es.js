@@ -597,7 +597,7 @@ class $ extends b {
     </div>`;
   }
 }
-const P = "0.11.1";
+const P = "0.11.2";
 async function M(r) {
   const e = await r.executor.getAllStorage(), t = r.executor.connector.providers, n = r.executor.manifest, s = r.id, o = r.code.replaceAll(".localStorage", ".sandboxedLocalStorage").replaceAll("window.top", "window.selector").replaceAll("window.open", "window.selector.open");
   return (
@@ -809,6 +809,7 @@ async function M(r) {
         },
       
         async ready(wallet) {
+          wallet.manifest = ${JSON.stringify(n)};
           window.parent.postMessage({ method: "wallet-ready", origin: "${s}" }, "*");
           window.selector.wallet = wallet;
         },
@@ -1233,7 +1234,7 @@ class p {
     return this.executor.call("wallet:signDelegateActions", t);
   }
 }
-class K {
+class D {
   constructor(e, t) {
     this.connector = e, this.wallet = t;
   }
@@ -1286,7 +1287,7 @@ class K {
     });
   }
 }
-const j = {
+const K = {
   id: "custom-wallet",
   name: "Custom Wallet",
   icon: "https://www.mynearwallet.com/images/webclip.png",
@@ -1309,7 +1310,7 @@ const j = {
     allowsOpen: []
   }
 };
-class D extends b {
+class F extends b {
   constructor(e) {
     super(e), this.delegate = e, this.update({ wallets: e.wallets, showSettings: !1 });
   }
@@ -1391,7 +1392,7 @@ class D extends b {
                 <a href="https://github.com/azbang/hot-connector" target="_blank">read the documentation.</a> Paste your manifest and click "Add".
               </p>
 
-              <textarea style="width: 100%;" id="debug-manifest-input" rows="10">${JSON.stringify(j, null, 2)}</textarea>
+              <textarea style="width: 100%;" id="debug-manifest-input" rows="10">${JSON.stringify(K, null, 2)}</textarea>
               <button class="add-debug-manifest-button">Add</button>
             </div>
 
@@ -1418,7 +1419,7 @@ class D extends b {
     </div>`;
   }
 }
-class F {
+class j {
   dbName;
   storeName;
   version;
@@ -1542,11 +1543,11 @@ class F {
     });
   }
 }
-const T = [
+const O = [
   "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/manifest.json",
   "https://cdn.jsdelivr.net/gh/azbang/hot-connector/repository/manifest.json"
 ];
-function O(r) {
+function T(r) {
   return (e) => Object.entries(r).length === 0 ? !0 : Object.entries(r).filter(([t, n]) => n === !0).every(([t]) => e.manifest.features?.[t] === !0);
 }
 class q {
@@ -1565,8 +1566,8 @@ class q {
   autoConnect;
   whenManifestLoaded;
   constructor(e) {
-    this.db = new F("hot-connector", "wallets"), this.storage = e?.storage ?? new k(), this.events = e?.events ?? new y(), this.logger = e?.logger, this.network = e?.network ?? "mainnet", this.walletConnect = e?.walletConnect, this.autoConnect = e?.autoConnect ?? !0, this.providers = e?.providers ?? { mainnet: [], testnet: [] }, this.excludedWallets = e?.excludedWallets ?? [], this.features = e?.features ?? {}, e?.footerBranding !== void 0 ? this.footerBranding = e?.footerBranding : this.footerBranding = {
-      icon: "https://pages.near.org/wp-content/uploads/2023/11/NEAR_token.png",
+    this.db = new j("hot-connector", "wallets"), this.storage = e?.storage ?? new k(), this.events = e?.events ?? new y(), this.logger = e?.logger, this.network = e?.network ?? "mainnet", this.walletConnect = e?.walletConnect, this.autoConnect = e?.autoConnect ?? !0, this.providers = e?.providers ?? { mainnet: [], testnet: [] }, this.excludedWallets = e?.excludedWallets ?? [], this.features = e?.features ?? {}, e?.footerBranding !== void 0 ? this.footerBranding = e?.footerBranding : this.footerBranding = {
+      icon: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%20512%20512%22%20class%3D%22size-7%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20fill%3D%22%2300ec97%22%20rx%3D%22110%22%2F%3E%3Cpath%20fill%3D%22%23000%22%20d%3D%22M373.89%20106.199a31.95%2031.95%200%200%200-27.213%2015.207l-62.631%2092.979a6.67%206.67%200%200%200-.989%205.001%206.66%206.66%200%200%200%202.837%204.235%206.67%206.67%200%200%200%208.032-.494l61.643-53.47c1.02-.924%202.599-.827%203.523.193.419.473.644%201.074.644%201.697v167.402a2.49%202.49%200%200%201-2.502%202.491%202.48%202.48%200%200%201-1.912-.891L168.976%20117.497a31.93%2031.93%200%200%200-24.356-11.298h-6.508c-17.623%200-31.917%2014.294-31.917%2031.917v235.767c0%2017.623%2014.294%2031.917%2031.917%2031.917a31.94%2031.94%200%200%200%2027.213-15.206l62.631-92.98a6.66%206.66%200%200%200-1.847-9.236%206.67%206.67%200%200%200-8.033.494l-61.643%2053.471c-1.02.923-2.599.826-3.522-.194a2.5%202.5%200%200%201-.634-1.697V173.008a2.49%202.49%200%200%201%202.502-2.492c.731%200%201.439.322%201.912.891l186.313%20223.096a31.95%2031.95%200%200%200%2024.357%2011.297h6.508c17.623%200%2031.927-14.272%2031.938-31.895V138.116c0-17.623-14.294-31.917-31.917-31.917%22%2F%3E%3C%2Fsvg%3E",
       heading: "NEAR Connector",
       link: "https://wallet.near.org",
       linkText: "Don't have a wallet?"
@@ -1587,10 +1588,10 @@ class q {
     return this.wallets.filter((t) => Object.entries(this.features).every(([n, s]) => !(s && !t.manifest.features?.[n]))).filter((t) => !(this.network === "testnet" && !t.manifest.features?.testnet));
   }
   _handleNearWalletInjected = (e) => {
-    this.wallets = this.wallets.filter((t) => t.manifest.id !== e.detail.manifest.id), this.wallets.unshift(new K(this, e.detail)), this.events.emit("selector:walletsChanged", {});
+    this.wallets = this.wallets.filter((t) => t.manifest.id !== e.detail.manifest.id), this.wallets.unshift(new D(this, e.detail)), this.events.emit("selector:walletsChanged", {});
   };
   async _loadManifest(e) {
-    const t = e ? [e] : T;
+    const t = e ? [e] : O;
     for (const n of t) {
       const s = await fetch(n).catch(() => null);
       if (!(!s || !s.ok))
@@ -1630,9 +1631,9 @@ class q {
   async selectWallet({ features: e = {} } = {}) {
     return await this.whenManifestLoaded.catch(() => {
     }), new Promise((t, n) => {
-      const s = new D({
+      const s = new F({
         footer: this.footerBranding,
-        wallets: this.availableWallets.filter(O(e)).map((o) => o.manifest),
+        wallets: this.availableWallets.filter(T(e)).map((o) => o.manifest),
         onRemoveDebugManifest: async (o) => this.removeDebugWallet(o),
         onAddDebugManifest: async (o) => this.registerDebugWallet(o),
         onReject: () => (n(new Error("User rejected")), s.destroy()),
@@ -1743,7 +1744,7 @@ class q {
   }
 }
 export {
-  K as InjectedWallet,
+  D as InjectedWallet,
   k as LocalStorage,
   q as NearConnector,
   I as ParentFrameWallet,

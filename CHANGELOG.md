@@ -1,3 +1,8 @@
+# 0.11.2
+
+- The wallet manifest is now available inside the sandbox.
+- Add metadata object to wallet manifest for any constants data
+
 # 0.11.1
 
 - Add bluetooth permission for sandbox
