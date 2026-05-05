@@ -296,6 +296,16 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
         },
       };
 
+      // Clipboard polyfill for sandboxed iframes (Android doesn't support clipboard API without allow-same-origin)
+      navigator.clipboard = {
+        writeText(text) {
+          return window.selector.call("clipboard.writeText", { text });
+        },
+        readText() {
+          return window.selector.call("clipboard.readText", {});
+        },
+      };
+
       window.addEventListener("message", async (event) => {
         if (event.data.origin !== "${uuid}") return;
         if (!event.data.method?.startsWith("wallet:")) return;
