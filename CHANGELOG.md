@@ -1,3 +1,7 @@
+# 0.11.3
+
+- Export `EventMap`, `EventType`, and `Account` types from barrel
+
 # 0.11.2
 
 - The wallet manifest is now available inside the sandbox.
