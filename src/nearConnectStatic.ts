@@ -1,1 +1,1 @@
-export const NEAR_CONNECT_VERSION = "0.11.2";
+export const NEAR_CONNECT_VERSION = "0.11.3";

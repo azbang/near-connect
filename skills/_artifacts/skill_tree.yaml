@@ -1,0 +1,38 @@
+# skills/_artifacts/skill_tree.yaml
+library:
+  name: '@hot-labs/near-connect'
+  version: '0.11.3'
+  repository: 'https://github.com/hot-dao/near-selector'
+  description: 'Zero-dependency wallet connector for the NEAR blockchain with sandboxed wallet execution'
+generated_from:
+  domain_map: 'skills/_artifacts/domain_map.yaml'
+  skill_spec: 'skills/_artifacts/skill_spec.md'
+generated_at: '2026-05-06'
+
+skills:
+  - name: 'near-connect-quickstart'
+    slug: 'near-connect-quickstart'
+    type: 'lifecycle'
+    domain: 'connecting'
+    path: 'skills/near-connect-quickstart/SKILL.md'
+    description: 'Install and initialize NearConnector, connect/disconnect wallets, listen for signIn/signOut events, filter by features, set up WalletConnect, handle manifest auto-updates'
+    requires: []
+    sources:
+      - 'hot-dao/near-selector:README.md'
+      - 'hot-dao/near-selector:src/NearConnector.ts'
+      - 'hot-dao/near-selector:src/types/index.ts'
+      - 'hot-dao/near-selector:llms.txt'
+
+  - name: 'near-connect-transactions'
+    slug: 'near-connect-transactions'
+    type: 'core'
+    domain: 'transacting'
+    path: 'skills/near-connect-transactions/SKILL.md'
+    description: 'Send transactions and sign messages using near-connect. Covers ConnectorAction and @near-js action formats, signAndSendTransaction, signAndSendTransactions, signMessage, signInAndSignMessage, signDelegateActions, and function call access keys'
+    requires:
+      - 'near-connect-quickstart'
+    sources:
+      - 'hot-dao/near-selector:src/actions/types.ts'
+      - 'hot-dao/near-selector:src/actions/index.ts'
+      - 'hot-dao/near-selector:src/types/index.ts'
+      - 'hot-dao/near-selector:src/SandboxedWallet/index.ts'

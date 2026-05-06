@@ -287,6 +287,16 @@ Additional:
 Auditing `src/helpers` will help assess the correctness of the coding algorithms.
 Auditing `src/popups` will help assess the correctness of interaction with the DOM, the presence of potential XSS attacks.
 
+## AI Agent Skills
+
+This package ships [Agent Skills](https://agentskills.io) via [TanStack Intent](https://tanstack.com/intent). If you use an AI coding agent, run:
+
+```bash
+npx @tanstack/intent@latest install
+```
+
+This adds skill loading guidance to your agent config so it can discover and use near-connect skills automatically.
+
 ## Contributions
 
 **Main contributor:**
