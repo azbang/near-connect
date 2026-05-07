@@ -314,7 +314,7 @@ class SandboxExecutor {
     const code = await this.loadCode();
     this.connector.logger?.log(`Code loaded, preparing`);
 
-    const iframe = new IframeExecutor(this, code, this._onMessage);
+    const iframe = new IframeExecutor(this, code, this._onMessage, this.connector.cspNonce);
     this.connector.logger?.log(`Code loaded, iframe initialized`);
 
     await iframe.readyPromise;

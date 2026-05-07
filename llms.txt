@@ -68,6 +68,7 @@ interface NearConnectorOptions {
   walletConnect?: { projectId: string; metadata: any };
   isBannedNearAddress?: (address: string) => Promise<boolean>;
   signIn?: { contractId?: string; methodNames?: string[] };  // Deprecated
+  cspNonce?: string;                       // CSP nonce for srcdoc iframe scripts
 }
 ```
 

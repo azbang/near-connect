@@ -199,6 +199,18 @@ const selector = new NearConnector({
 });
 ```
 
+## Content Security Policy (CSP)
+
+If your site uses nonce-based CSP (e.g. `script-src 'nonce-abc123'`), the sandboxed iframe's inline scripts will be blocked because `srcdoc` iframes inherit the parent's CSP. Pass your nonce to `NearConnector` to allow the scripts to execute:
+
+```ts
+const connector = new NearConnector({
+  cspNonce: document.querySelector('script[nonce]')?.getAttribute('nonce') ?? undefined,
+});
+```
+
+This adds the nonce to both `<script>` tags inside the iframe — the runtime bridge (`window.selector`) and the wallet module code. Without it, the iframe loads but neither script executes.
+
 ## How to add my wallet?
 
 When you develop a connector for your wallet, you can immediately test your code on real applications that use NEAR Connect. Super easy!
