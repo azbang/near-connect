@@ -597,9 +597,9 @@ class $ extends b {
     </div>`;
   }
 }
-const P = "0.11.2";
+const P = "0.11.4";
 async function M(r) {
-  const e = await r.executor.getAllStorage(), t = r.executor.connector.providers, n = r.executor.manifest, s = r.id, o = r.code.replaceAll(".localStorage", ".sandboxedLocalStorage").replaceAll("window.top", "window.selector").replaceAll("window.open", "window.selector.open");
+  const e = await r.executor.getAllStorage(), t = r.executor.connector.providers, n = r.executor.manifest, s = r.id, o = r.code.replaceAll(".localStorage", ".sandboxedLocalStorage").replaceAll("window.top", "window.selector").replaceAll("window.open", "window.selector.open"), a = r.cspNonce ? ` nonce="${r.cspNonce.replace(/[^A-Za-z0-9+/=]/g, "")}"` : "";
   return (
     /* html */
     `
@@ -691,7 +691,7 @@ async function M(r) {
       </style>
 
 
-      <script>
+      <script${a}>
       window.sandboxedLocalStorage = (() => {
         let storage = ${JSON.stringify(e)}
 
@@ -910,20 +910,20 @@ async function M(r) {
       });
       <\/script>
 
-      <script type="module">${o}<\/script>
+      <script type="module"${a}>${o}<\/script>
     </body>
   </html>
     `
   );
 }
 class N {
-  constructor(e, t, n) {
-    this.executor = e, this.origin = g(), this.handler = (o) => {
-      o.data.origin === this.origin && (o.data.method === "wallet-ready" && this.readyPromiseResolve(), n(this, o));
+  constructor(e, t, n, s) {
+    this.executor = e, this.origin = g(), this.handler = (a) => {
+      a.data.origin === this.origin && (a.data.method === "wallet-ready" && this.readyPromiseResolve(), n(this, a));
     }, window.addEventListener("message", this.handler);
-    const s = [];
-    this.executor.checkPermissions("usb") && s.push("usb *;"), this.executor.checkPermissions("hid") && s.push("hid *;"), this.executor.checkPermissions("clipboardRead") && s.push("clipboard-read;"), this.executor.checkPermissions("clipboardWrite") && s.push("clipboard-write;"), this.executor.checkPermissions("bluetooth") && s.push("bluetooth *;"), this.iframe.allow = s.join(" "), this.iframe.setAttribute("sandbox", "allow-scripts"), M({ id: this.origin, executor: this.executor, code: t }).then((o) => {
-      this.executor.connector.logger?.log("Iframe code injected"), this.iframe.srcdoc = o;
+    const o = [];
+    this.executor.checkPermissions("usb") && o.push("usb *;"), this.executor.checkPermissions("hid") && o.push("hid *;"), this.executor.checkPermissions("clipboardRead") && o.push("clipboard-read;"), this.executor.checkPermissions("clipboardWrite") && o.push("clipboard-write;"), this.executor.checkPermissions("bluetooth") && o.push("bluetooth *;"), this.iframe.allow = o.join(" "), this.iframe.setAttribute("sandbox", "allow-scripts"), M({ id: this.origin, executor: this.executor, code: t, cspNonce: s }).then((a) => {
+      this.executor.connector.logger?.log("Iframe code injected"), this.iframe.srcdoc = a;
     }), this.popup = new $({
       footer: this.executor.connector.footerBranding,
       iframe: this.iframe,
@@ -1155,7 +1155,7 @@ class W {
     this.connector.logger?.log("Add to queue", e, t), this.connector.logger?.log("Calling method", e, t);
     const n = await this.loadCode();
     this.connector.logger?.log("Code loaded, preparing");
-    const s = new N(this, n, this._onMessage);
+    const s = new N(this, n, this._onMessage, this.connector.cspNonce);
     this.connector.logger?.log("Code loaded, iframe initialized"), await s.readyPromise, this.connector.logger?.log("Iframe ready");
     const o = g();
     return new Promise((a, i) => {
@@ -1564,9 +1564,10 @@ class q {
   footerBranding;
   excludedWallets = [];
   autoConnect;
+  cspNonce;
   whenManifestLoaded;
   constructor(e) {
-    this.db = new j("hot-connector", "wallets"), this.storage = e?.storage ?? new k(), this.events = e?.events ?? new y(), this.logger = e?.logger, this.network = e?.network ?? "mainnet", this.walletConnect = e?.walletConnect, this.autoConnect = e?.autoConnect ?? !0, this.providers = e?.providers ?? { mainnet: [], testnet: [] }, this.excludedWallets = e?.excludedWallets ?? [], this.features = e?.features ?? {}, e?.footerBranding !== void 0 ? this.footerBranding = e?.footerBranding : this.footerBranding = {
+    this.db = new j("hot-connector", "wallets"), this.storage = e?.storage ?? new k(), this.events = e?.events ?? new y(), this.logger = e?.logger, this.cspNonce = e?.cspNonce, this.network = e?.network ?? "mainnet", this.walletConnect = e?.walletConnect, this.autoConnect = e?.autoConnect ?? !0, this.providers = e?.providers ?? { mainnet: [], testnet: [] }, this.excludedWallets = e?.excludedWallets ?? [], this.features = e?.features ?? {}, e?.footerBranding !== void 0 ? this.footerBranding = e?.footerBranding : this.footerBranding = {
       icon: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%20512%20512%22%20class%3D%22size-7%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20fill%3D%22%2300ec97%22%20rx%3D%22110%22%2F%3E%3Cpath%20fill%3D%22%23000%22%20d%3D%22M373.89%20106.199a31.95%2031.95%200%200%200-27.213%2015.207l-62.631%2092.979a6.67%206.67%200%200%200-.989%205.001%206.66%206.66%200%200%200%202.837%204.235%206.67%206.67%200%200%200%208.032-.494l61.643-53.47c1.02-.924%202.599-.827%203.523.193.419.473.644%201.074.644%201.697v167.402a2.49%202.49%200%200%201-2.502%202.491%202.48%202.48%200%200%201-1.912-.891L168.976%20117.497a31.93%2031.93%200%200%200-24.356-11.298h-6.508c-17.623%200-31.917%2014.294-31.917%2031.917v235.767c0%2017.623%2014.294%2031.917%2031.917%2031.917a31.94%2031.94%200%200%200%2027.213-15.206l62.631-92.98a6.66%206.66%200%200%200-1.847-9.236%206.67%206.67%200%200%200-8.033.494l-61.643%2053.471c-1.02.923-2.599.826-3.522-.194a2.5%202.5%200%200%201-.634-1.697V173.008a2.49%202.49%200%200%201%202.502-2.492c.731%200%201.439.322%201.912.891l186.313%20223.096a31.95%2031.95%200%200%200%2024.357%2011.297h6.508c17.623%200%2031.927-14.272%2031.938-31.895V138.116c0-17.623-14.294-31.917-31.917-31.917%22%2F%3E%3C%2Fsvg%3E",
       heading: "NEAR Connector",
       link: "https://wallet.near.org",
