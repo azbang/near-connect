@@ -18,7 +18,7 @@ class IframeExecutor {
     this.readyPromiseResolve = resolve;
   });
 
-  constructor(readonly executor: SandboxExecutor, code: string, onMessage: (iframe: IframeExecutor, event: MessageEvent) => void) {
+  constructor(readonly executor: SandboxExecutor, code: string, onMessage: (iframe: IframeExecutor, event: MessageEvent) => void, cspNonce?: string) {
     this.origin = uuid4();
     this.handler = (event: MessageEvent<any>) => {
       if (event.data.origin !== this.origin) return;
@@ -37,7 +37,7 @@ class IframeExecutor {
     this.iframe.allow = iframeAllowedPermissions.join(" ");
     this.iframe.setAttribute("sandbox", "allow-scripts");
 
-    getIframeCode({ id: this.origin, executor: this.executor, code }).then((code) => {
+    getIframeCode({ id: this.origin, executor: this.executor, code, cspNonce }).then((code) => {
       this.executor.connector.logger?.log(`Iframe code injected`);
       this.iframe.srcdoc = code;
     });

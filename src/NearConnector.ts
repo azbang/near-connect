@@ -22,7 +22,7 @@ import { ParentFrameWallet } from "./ParentFrameWallet";
 import { InjectedWallet } from "./InjectedWallet";
 import { SandboxWallet } from "./SandboxedWallet";
 
-interface NearConnectorOptions {
+export interface NearConnectorOptions {
   providers?: { mainnet?: string[]; testnet?: string[] };
   features?: Partial<WalletFeatures>;
   excludedWallets?: string[];
@@ -35,6 +35,7 @@ interface NearConnectorOptions {
   events?: EventEmitter<EventMap>;
   storage?: DataStorage;
   logger?: Logger;
+  cspNonce?: string;
 
   /**
    * Footer branding for the wallet selector popup. If not provided, default branding will be used. If provided null, footer will be hidden.
@@ -85,6 +86,7 @@ export class NearConnector {
   footerBranding: FooterBranding | null;
   excludedWallets: string[] = [];
   autoConnect?: boolean;
+  cspNonce?: string;
 
   readonly whenManifestLoaded: Promise<void>;
 
@@ -93,6 +95,7 @@ export class NearConnector {
     this.storage = options?.storage ?? new LocalStorage();
     this.events = options?.events ?? new EventEmitter<EventMap>();
     this.logger = options?.logger;
+    this.cspNonce = options?.cspNonce;
 
     this.network = options?.network ?? "mainnet";
     this.walletConnect = options?.walletConnect;

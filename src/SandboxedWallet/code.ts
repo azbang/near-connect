@@ -1,7 +1,7 @@
 import { NEAR_CONNECT_VERSION } from "../nearConnectStatic";
 import SandboxExecutor from "./executor";
 
-async function getIframeCode(args: { id: string; executor: SandboxExecutor; code: string }) {
+async function getIframeCode(args: { id: string; executor: SandboxExecutor; code: string; cspNonce?: string }) {
   const storage = await args.executor.getAllStorage();
   const providers = args.executor.connector.providers;
   const manifest = args.executor.manifest;
@@ -11,6 +11,8 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
     .replaceAll(".localStorage", ".sandboxedLocalStorage")
     .replaceAll("window.top", "window.selector")
     .replaceAll("window.open", "window.selector.open");
+
+  const nonceAttr = args.cspNonce ? ` nonce="${args.cspNonce.replace(/[^A-Za-z0-9+/=]/g, "")}"` : "";
 
   return /* html */ `
   <!DOCTYPE html>
@@ -101,7 +103,7 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
       </style>
 
 
-      <script>
+      <script${nonceAttr}>
       window.sandboxedLocalStorage = (() => {
         let storage = ${JSON.stringify(storage)}
 
@@ -320,7 +322,7 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
       });
       </script>
 
-      <script type="module">${code}</script>
+      <script type="module"${nonceAttr}>${code}</script>
     </body>
   </html>
     `;

@@ -1,3 +1,7 @@
+# 0.11.4
+
+- Add `cspNonce` option to `NearConnector` for CSP compliance. When set, the nonce is added to both `<script>` tags inside the `srcdoc` sandbox iframe, allowing them to execute under nonce-based Content Security Policy.
+
 # 0.11.3
 
 - Export `EventMap`, `EventType`, and `Account` types from barrel
