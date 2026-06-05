@@ -25,6 +25,7 @@ interface Window {
     ui: {
       whenApprove: (options: { title: string; button: string }) => Promise<void>;
       showIframe: () => void;
+      hideIframe: () => void;
     };
 
     open: (
@@ -44,6 +45,11 @@ interface Window {
       get: (key: string) => Promise<string>;
       remove: (key: string) => Promise<void>;
       keys: () => Promise<string[]>;
+    };
+
+    webauthn: {
+      create: (options: any) => Promise<any>;
+      get: (options: any) => Promise<any>;
     };
   };
 }

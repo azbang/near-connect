@@ -29,6 +29,11 @@
     "type-check": "tsc --noEmit",
     "type-check-all": "yarn run type-check && cd example && yarn run type-check && cd ../near-wallets && yarn run type-check"
   },
+  "dependencies": {
+    "@noble/curves": "^1.7.0",
+    "@noble/hashes": "^1.7.0",
+    "@scure/base": "^1.2.0"
+  },
   "devDependencies": {
     "@near-js/transactions": "^2.5.1",
     "@near-js/types": "^2.5.1",

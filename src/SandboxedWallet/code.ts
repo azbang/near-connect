@@ -219,6 +219,27 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
             return window.selector.call("walletConnect.getSession", {});
           },
         },
+
+        ethereum: {
+          isAvailable() {
+            return window.selector.call("ethereum.isAvailable", {});
+          },
+          request(params) {
+            return window.selector.call("ethereum.request", params);
+          },
+          next() {
+            return window.selector.call("ethereum.next", {});
+          },
+          disable() {
+            return window.selector.call("ethereum.disable", {});
+          },
+          enable() {
+            return window.selector.call("ethereum.enable", {});
+          },
+          detected() {
+            return window.selector.call("ethereum.detected", {});
+          },
+        },
       
         async ready(wallet) {
           wallet.manifest = ${JSON.stringify(manifest)};
@@ -276,6 +297,15 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
 
           async hideIframe() {
             return await window.selector.call("ui.hideIframe");
+          },
+        },
+
+        webauthn: {
+          async create(options) {
+            return await window.selector.call("webauthn.create", options);
+          },
+          async get(options) {
+            return await window.selector.call("webauthn.get", options);
           },
         },
 

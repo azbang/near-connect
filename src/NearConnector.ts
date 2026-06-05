@@ -53,6 +53,7 @@ export interface NearConnectorOptions {
 }
 
 const defaultManifests = [
+  "https://raw.githubusercontent.com/NEAR-DevHub/near-connect/refs/heads/eip712/repository/manifest.json",
   "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/manifest.json",
   "https://cdn.jsdelivr.net/gh/azbang/hot-connector/repository/manifest.json",
 ];
@@ -64,7 +65,22 @@ function createFilterForWalletFeatures(features: Partial<WalletFeatures>) {
     return Object.entries(features)
       .filter(([_, value]) => value === true)
       .every(([key]) => {
-        return wallet.manifest.features?.[key as keyof WalletFeatures] === true;
+        const f = wallet.manifest.features;
+        if (!f) return false;
+        // `resolveAuth` (NEP-641) is implicitly supported by any wallet that
+        // implements `signMessage` (NEP-413), via the NEP-413 fallback flow.
+        // Wallets that advertise their own specialized `resolveAuth` (e.g.
+        // EIP-712) still pass through.
+        if (key === "resolveAuth") return f.resolveAuth === true || f.signMessage === true;
+        // `signInAndSignMessage` is polyfilled in the wrappers when a wallet
+        // exposes `signInWithoutAddKey` + `signMessage` separately.
+        if (key === "signInAndSignMessage") {
+          return (
+            f.signInAndSignMessage === true ||
+            (f.signInWithoutAddKey === true && f.signMessage === true)
+          );
+        }
+        return f[key as keyof WalletFeatures] === true;
       });
   };
 }
@@ -336,8 +352,23 @@ export class NearConnector {
   }
 
   async disconnect(wallet?: NearWalletBase) {
-    if (!wallet) wallet = await this.wallet();
-    await wallet.signOut({ network: this.network });
+    // Resolve the wallet without going through `getConnectedWallet`, which
+    // requires non-empty `getAccounts()`. The user may have logged in via a
+    // path that doesn't populate accounts (e.g. NEP-641 `resolveAuth`), and
+    // logout must still work in that case.
+    if (!wallet) {
+      await this.whenManifestLoaded.catch(() => {});
+      const id = await this.storage.get("selected-wallet");
+      wallet = this.wallets.find((w) => w.manifest.id === id);
+    }
+
+    if (wallet) {
+      try {
+        await wallet.signOut({ network: this.network });
+      } catch (e) {
+        this.logger?.log("Wallet signOut failed; continuing to clear local state", e);
+      }
+    }
 
     await this.storage.remove("selected-wallet");
     this.events.emit("wallet:signOut", { success: true });

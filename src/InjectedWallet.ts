@@ -10,11 +10,18 @@ import {
   SignedMessage,
   SignMessageParams,
   type AccountWithSignedMessage,
+  type ResolveAuthParams,
+  type ResolveAuthResponse,
   type SignInAndSignMessageParams,
   type SignInParams,
 } from "./types";
 import { NearConnector } from "./NearConnector";
 import { nearActionsToConnectorActions } from "./actions";
+import {
+  defaultResolveAuthViaSignMessage,
+  isResolveAuthMethodNotFound,
+  polyfillSignInAndSignMessage,
+} from "./helpers/resolveAuth";
 
 export class InjectedWallet implements NearWalletBase {
   constructor(
@@ -34,11 +41,15 @@ export class InjectedWallet implements NearWalletBase {
   }
 
   async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<Array<AccountWithSignedMessage>> {
-    return this.wallet.signInAndSignMessage({
-      network: data?.network ?? this.connector.network,
-      addFunctionCallKey: data.addFunctionCallKey,
-      messageParams: data.messageParams,
-    });
+    const network = data?.network ?? this.connector.network;
+    if (this.manifest.features?.signInAndSignMessage === true) {
+      return this.wallet.signInAndSignMessage({
+        network,
+        addFunctionCallKey: data.addFunctionCallKey,
+        messageParams: data.messageParams,
+      });
+    }
+    return polyfillSignInAndSignMessage(this, { ...data, network });
   }
 
   async signOut(data?: { network?: Network }): Promise<void> {
@@ -89,5 +100,20 @@ export class InjectedWallet implements NearWalletBase {
       })),
       network: params.network ?? this.connector.network,
     });
+  }
+
+  async resolveAuth(params: ResolveAuthParams): Promise<ResolveAuthResponse> {
+    const args = { ...params, network: params.network ?? this.connector.network };
+    if (this.manifest.features?.resolveAuth === true && this.wallet.resolveAuth) {
+      try {
+        return await this.wallet.resolveAuth(args);
+      } catch (e) {
+        // See SandboxedWallet.resolveAuth — fall through to the default
+        // signMessage-based impl when the injected wallet reports the
+        // method isn't implemented.
+        if (!isResolveAuthMethodNotFound(e)) throw e;
+      }
+    }
+    return defaultResolveAuthViaSignMessage(this, args);
   }
 }

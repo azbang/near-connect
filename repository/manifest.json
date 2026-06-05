@@ -1,6 +1,64 @@
 {
   "version": "1.1.0",
+  "wallets.future": [
+    {
+      "id": "passkey",
+      "name": "Passkey",
+      "icon": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Crect width='64' height='64' rx='12' fill='%23111'/%3E%3Ccircle cx='26' cy='24' r='8' stroke='%2300d4aa' stroke-width='3' fill='none'/%3E%3Cpath d='M26 32c-8 0-14 5-14 12h28c0-7-6-12-14-12z' stroke='%2300d4aa' stroke-width='3' fill='none'/%3E%3Cpath d='M40 28l6 6m0-6l-6 6' stroke='%2300d4aa' stroke-width='3' stroke-linecap='round'/%3E%3Crect x='42' y='20' width='12' height='16' rx='6' stroke='%2300d4aa' stroke-width='3' fill='none'/%3E%3C/svg%3E",
+      "description": "Sign transactions with your device's built-in Passkey (biometrics or security key)",
+      "website": "https://near.org",
+      "version": "1.0.0",
+      "executor": "/near-connect/repository/passkey.js",
+      "type": "sandbox",
+      "platform": {},
+      "features": {
+        "signMessage": true,
+        "signInWithoutAddKey": true,
+        "signInAndSignMessage": true,
+        "signInWithFunctionCallKey": true,
+        "signAndSendTransaction": true,
+        "signAndSendTransactions": true,
+        "signDelegateActions": true,
+        "resolveAuth": true,
+        "mainnet": true,
+        "testnet": true
+      },
+      "permissions": {
+        "storage": true,
+        "webauthn": true
+      }
+    }
+  ],
   "wallets": [
+    {
+      "id": "walletcontract-eip712",
+      "name": "Ethereum Wallets",
+      "icon": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Crect width='64' height='64' rx='12' fill='%23111'/%3E%3Cpath d='M32 8l-1 3.4V38.5l1 1 14-8.3z' fill='%23c0cbf6'/%3E%3Cpath d='M32 8L18 31.2l14 8.3V8z' fill='%23fff'/%3E%3Cpath d='M32 42.2l-1 1.2v11.2l1 2.9L46 34z' fill='%23c0cbf6'/%3E%3Cpath d='M32 57.5V42.2L18 34l14 23.5z' fill='%23fff'/%3E%3Cpath d='M32 39.5l14-8.3-14-6.4z' fill='%238197ee'/%3E%3Cpath d='M18 31.2l14 8.3v-14.7z' fill='%23c0cbf6'/%3E%3C/svg%3E",
+      "description": "Use your Ethereum wallet (MetaMask, Fireblocks, etc.) to control a NEAR account via WalletConnect",
+      "website": "https://near.org",
+      "version": "1.0.0",
+      ".executor": "/near-connect/repository/eip712-wallet.js",
+      "executor": "https://raw.githubusercontent.com/NEAR-DevHub/near-connect/refs/heads/eip712/repository/eip712-wallet.js",
+      "type": "sandbox",
+      "platform": {},
+      "features": {
+        "signMessage": true,
+        "signInWithoutAddKey": true,
+        "signInAndSignMessage": true,
+        "signAndSendTransaction": true,
+        "signAndSendTransactions": true,
+        "signDelegateActions": true,
+        "resolveAuth": true,
+        "mainnet": true,
+        "testnet": true
+      },
+      "permissions": {
+        "storage": true,
+        "clipboardWrite": true,
+        "walletConnect": true,
+        "allowsOpen": ["wc:"]
+      }
+    },
     {
       "id": "hot-wallet",
       "name": "HOT Wallet",
@@ -23,7 +81,8 @@
         "signMessage": true,
         "signInWithoutAddKey": true,
         "signAndSendTransaction": true,
-        "signAndSendTransactions": true
+        "signAndSendTransactions": true,
+        "resolveAuth": true
       },
 
       "permissions": {
@@ -57,6 +116,7 @@
         "signAndSendTransactions": true,
         "signInWithFunctionCallKey": true,
         "signDelegateActions": true,
+        "resolveAuth": true,
         "mainnet": true,
         "testnet": true
       },
@@ -91,6 +151,7 @@
         "signAndSendTransaction": true,
         "signAndSendTransactions": true,
         "signInWithoutAddKey": true,
+        "resolveAuth": true,
         "verifyOwner": false,
         "testnet": true,
         "signDelegateActions": true,
@@ -132,6 +193,7 @@
         "signAndSendTransaction": true,
         "signAndSendTransactions": true,
         "signDelegateActions": true,
+        "resolveAuth": true,
         "mainnet": true,
         "testnet": true
       },
@@ -162,7 +224,8 @@
         "signInAndSignMessage": true,
         "signInWithFunctionCallKey": true,
         "signAndSendTransaction": true,
-        "signAndSendTransactions": true
+        "signAndSendTransactions": true,
+        "resolveAuth": true
       },
 
       "permissions": {
@@ -201,7 +264,8 @@
         "signInAndSignMessage": true,
         "signInWithFunctionCallKey": true,
         "signAndSendTransaction": true,
-        "signAndSendTransactions": true
+        "signAndSendTransactions": true,
+        "resolveAuth": true
       }
     },
     {
@@ -222,6 +286,7 @@
         "signAndSendTransaction": true,
         "signAndSendTransactions": true,
         "signDelegateActions": true,
+        "resolveAuth": true,
         "verifyOwner": false,
         "mainnet": true,
         "testnet": false
@@ -288,6 +353,7 @@
         "signInWithFunctionCallKey": true,
         "signAndSendTransaction": true,
         "signAndSendTransactions": true,
+        "resolveAuth": true,
         "testnet": true
       }
     },
@@ -304,7 +370,8 @@
       "permissions": {
         "storage": true,
         "clipboardWrite": true,
-        "walletConnect": true
+        "walletConnect": true,
+        "allowsOpen": ["wc:"]
       },
       "features": {
         "signMessage": true,
@@ -313,6 +380,7 @@
         "signInWithFunctionCallKey": true,
         "signAndSendTransaction": true,
         "signAndSendTransactions": true,
+        "resolveAuth": true,
         "testnet": true
       }
     },
@@ -333,7 +401,8 @@
       "permissions": {
         "storage": true,
         "clipboardWrite": true,
-        "walletConnect": true
+        "walletConnect": true,
+        "allowsOpen": ["wc:"]
       },
       "features": {
         "signMessage": true,
@@ -342,9 +411,10 @@
         "signInWithFunctionCallKey": true,
         "signAndSendTransaction": true,
         "signAndSendTransactions": true,
+        "resolveAuth": true,
         "testnet": true
       }
-    },
+    }, 
     {
       "id": "near-cli",
       "name": "NEAR CLI",
@@ -363,6 +433,7 @@
         "signAndSendTransactions": true,
         "signDelegateActions": true,
         "signInWithFunctionCallKey": true,
+        "resolveAuth": true,
         "mainnet": true,
         "testnet": true
       },

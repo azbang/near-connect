@@ -7,6 +7,70 @@ import IframeExecutor from "./iframe";
 
 const cacheId = uuid4();
 
+// ─── Injected Ethereum provider discovery ────────────────────────────────────
+// Used by the `ethereum.*` bridge so sandboxed wallets (e.g. eip712-wallet)
+// can talk to browser-extension wallets without breaking iframe isolation —
+// only JSON-RPC `request({method, params})` crosses the boundary.
+//
+// Two discovery channels:
+//   1. Legacy: `window.ethereum` (single global).
+//   2. EIP-6963: providers dispatch `eip6963:announceProvider` in response
+//      to a page-emitted `eip6963:requestProvider`. Required for MetaMask
+//      and any other provider that no longer injects the legacy global.
+const _eip6963Providers: any[] = [];
+let _eip6963ListenerInstalled = false;
+// Index of the provider currently exposed via `pickEthereumProvider()`.
+// Advanced by `ethereum.next` so the iframe's "Use a different wallet"
+// button can rotate through detected providers.
+let _eip6963ProviderIndex = 0;
+// Set when the iframe explicitly opts out of the injected-provider bridge
+// (user picked "Use a different wallet" with no more rotations, or the
+// extension revoked permission). The bridge then reports unavailable and
+// the iframe falls back to its WalletConnect path.
+let _ethereumBridgeDisabled = false;
+
+function installEip6963Listener(): void {
+  if (typeof window === "undefined" || _eip6963ListenerInstalled) return;
+  _eip6963ListenerInstalled = true;
+  window.addEventListener("eip6963:announceProvider", (event: any) => {
+    const provider = event?.detail?.provider;
+    if (provider && !_eip6963Providers.includes(provider)) _eip6963Providers.push(provider);
+  });
+  // Prompt any provider that's already loaded to re-announce. Per EIP-6963
+  // the wallet listens for this and re-dispatches `eip6963:announceProvider`.
+  window.dispatchEvent(new CustomEvent("eip6963:requestProvider"));
+}
+
+if (typeof window !== "undefined") installEip6963Listener();
+
+function pickEthereumProvider(): any {
+  // Prefer EIP-6963 (multi-provider safe). Fall back to the legacy global
+  // `window.ethereum`, re-reading on each call so we don't cache a stale
+  // null from a load order race.
+  if (_eip6963Providers.length > 0) {
+    return _eip6963Providers[_eip6963ProviderIndex % _eip6963Providers.length];
+  }
+  if (typeof window !== "undefined" && (window as any).ethereum) return (window as any).ethereum;
+  return null;
+}
+
+async function waitForEthereumProvider(timeoutMs = 800): Promise<any> {
+  installEip6963Listener();
+  const existing = pickEthereumProvider();
+  if (existing) return existing;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    // Re-emit periodically — some providers attach the listener late.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("eip6963:requestProvider"));
+    }
+    await new Promise((r) => setTimeout(r, 100));
+    const found = pickEthereumProvider();
+    if (found) return found;
+  }
+  return null;
+}
+
 class SandboxExecutor {
   private activePanels: Record<string, Window> = {};
   readonly storageSpace: string;
@@ -28,10 +92,29 @@ class SandboxExecutor {
 
     if (action === "allowsOpen") {
       const openUrl = parseUrl(params?.url || "");
-      const allowsOpen = this.manifest.permissions.allowsOpen;
+      if (!openUrl) return false;
 
-      if (!openUrl || !allowsOpen || !Array.isArray(allowsOpen) || allowsOpen.length === 0) return false;
+      // WalletConnect needs to deeplink into arbitrary wallet apps via
+      // both custom schemes (`ledgerlive:`, `metamask:`, `rainbow:`, …)
+      // and web entry points (`https://console.fireblocks.io/v2/wc?...`,
+      // `https://link.metamask.io/...`, etc.). Enumerating every wallet
+      // is unmaintainable, so a wallet granted the `walletConnect`
+      // permission may open any URL except known-dangerous schemes.
+      const DANGEROUS_SCHEMES = new Set(["javascript:", "data:", "blob:", "file:", "about:"]);
+      if (DANGEROUS_SCHEMES.has(openUrl.protocol.toLowerCase())) return false;
+      if (this.manifest.permissions.walletConnect === true) return true;
+
+      const allowsOpen = this.manifest.permissions.allowsOpen;
+      if (!allowsOpen || !Array.isArray(allowsOpen) || allowsOpen.length === 0) return false;
       const isAllowed = allowsOpen.some((path) => {
+        // Protocol-only patterns like "wc:" or "metamask:" allow any URL
+        // with that scheme. Needed for WalletConnect deeplinks: the spec
+        // pairing URI is `wc:<topic>?...` which `new URL("wc:")` rejects,
+        // so a plain `new URL(path)` comparison would never match.
+        if (/^[a-z][a-z0-9+.-]*:$/i.test(path)) {
+          return openUrl.protocol.toLowerCase() === path.toLowerCase();
+        }
+
         const url = parseUrl(path);
         if (!url) return false;
 
@@ -248,6 +331,140 @@ class SandboxExecutor {
         }, 500);
       }
 
+      return;
+    }
+
+    if (event.data.method === "webauthn.create") {
+      this.assertPermissions(iframe, "webauthn", event);
+      try {
+        const options = event.data.params;
+        // Reconstruct ArrayBuffer fields from serialized arrays
+        if (options.challenge) options.challenge = new Uint8Array(options.challenge).buffer;
+        if (options.user?.id) options.user.id = new Uint8Array(options.user.id).buffer;
+        if (options.excludeCredentials) {
+          options.excludeCredentials = options.excludeCredentials.map((c: any) => ({
+            ...c,
+            id: new Uint8Array(c.id).buffer,
+          }));
+        }
+
+        const credential = await navigator.credentials.create({ publicKey: options });
+        if (!(credential instanceof PublicKeyCredential)) throw new Error("Invalid credential");
+        const response = credential.response as AuthenticatorAttestationResponse;
+
+        const result: any = {
+          rawId: Array.from(new Uint8Array(credential.rawId)),
+          clientDataJSON: Array.from(new Uint8Array(response.clientDataJSON)),
+          attestationObject: Array.from(new Uint8Array(response.attestationObject)),
+        };
+
+        if (typeof response.getPublicKey === "function") {
+          const spki = response.getPublicKey();
+          result.publicKey = spki ? Array.from(new Uint8Array(spki)) : null;
+        }
+
+        success(result);
+      } catch (e) {
+        failed(e instanceof Error ? e.message : String(e));
+      }
+      return;
+    }
+
+    if (event.data.method === "webauthn.get") {
+      this.assertPermissions(iframe, "webauthn", event);
+      try {
+        const options = event.data.params;
+        if (options.challenge) options.challenge = new Uint8Array(options.challenge).buffer;
+        if (options.allowCredentials) {
+          options.allowCredentials = options.allowCredentials.map((c: any) => ({
+            ...c,
+            id: new Uint8Array(c.id).buffer,
+          }));
+        }
+
+        const credential = await navigator.credentials.get({ publicKey: options });
+        if (!(credential instanceof PublicKeyCredential)) throw new Error("Invalid credential");
+        const response = credential.response as AuthenticatorAssertionResponse;
+
+        success({
+          rawId: Array.from(new Uint8Array(credential.rawId)),
+          signature: Array.from(new Uint8Array(response.signature)),
+          authenticatorData: Array.from(new Uint8Array(response.authenticatorData)),
+          clientDataJSON: Array.from(new Uint8Array(response.clientDataJSON)),
+        });
+      } catch (e) {
+        failed(e instanceof Error ? e.message : String(e));
+      }
+      return;
+    }
+
+    // Bridge to a browser-extension Ethereum provider (e.g. MetaMask). The
+    // provider injects `window.ethereum` into the top-level page only — the
+    // sandboxed iframe can't see it. Forwarding requests preserves the
+    // iframe isolation: the executor never gets direct access to the
+    // provider object, only the proxied JSON-RPC responses.
+    if (event.data.method === "ethereum.isAvailable") {
+      this.assertPermissions(iframe, "walletConnect", event);
+      if (_ethereumBridgeDisabled) { success(false); return; }
+      const eth = await waitForEthereumProvider();
+      success(!!eth && typeof eth.request === "function");
+      return;
+    }
+
+    // Rotate to the next detected EIP-6963 provider. Triggered by the
+    // "Use a different wallet" button in sandboxed wallets so the user can
+    // switch between multiple installed extensions without reloading.
+    if (event.data.method === "ethereum.next") {
+      this.assertPermissions(iframe, "walletConnect", event);
+      if (_eip6963Providers.length > 1) {
+        _eip6963ProviderIndex = (_eip6963ProviderIndex + 1) % _eip6963Providers.length;
+      }
+      success(_eip6963Providers.length > 1);
+      return;
+    }
+
+    // Opt out of the injected-provider bridge entirely for the rest of the
+    // session, so the iframe falls back to WalletConnect (e.g. user wants
+    // Fireblocks instead of MetaMask, or revoked the extension's auth).
+    if (event.data.method === "ethereum.disable") {
+      this.assertPermissions(iframe, "walletConnect", event);
+      _ethereumBridgeDisabled = true;
+      success(null);
+      return;
+    }
+
+    // Re-enable the bridge after a previous `disable`. Used when the user
+    // wants to switch back from WalletConnect to the browser extension.
+    if (event.data.method === "ethereum.enable") {
+      this.assertPermissions(iframe, "walletConnect", event);
+      _ethereumBridgeDisabled = false;
+      success(null);
+      return;
+    }
+
+    // Reports whether any extension provider was ever detected on the
+    // page. Honest even when the bridge is currently disabled, so the
+    // iframe can offer the "Use browser extension" affordance.
+    if (event.data.method === "ethereum.detected") {
+      this.assertPermissions(iframe, "walletConnect", event);
+      const eth = await waitForEthereumProvider();
+      success(!!eth && typeof eth.request === "function");
+      return;
+    }
+
+    if (event.data.method === "ethereum.request") {
+      this.assertPermissions(iframe, "walletConnect", event);
+      const eth = await waitForEthereumProvider();
+      if (!eth || typeof eth.request !== "function") {
+        failed("No injected Ethereum provider available");
+        return;
+      }
+      try {
+        const result = await eth.request(event.data.params);
+        success(result);
+      } catch (e: any) {
+        failed({ message: e?.message ?? String(e), code: e?.code });
+      }
       return;
     }
 

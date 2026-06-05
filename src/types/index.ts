@@ -106,6 +106,7 @@ export interface WalletPermissions {
   usb?: boolean;
   hid?: boolean;
   bluetooth?: boolean;
+  webauthn?: boolean;
 }
 
 export interface SignAndSendTransactionParams {
@@ -135,6 +136,21 @@ export interface SignDelegateActionsResponse {
   signedDelegateActions: string[];
 }
 
+export type ResolveAuthPurpose = "PROVE_OWNERSHIP" | "APPROVE_OFFCHAIN_ACTION";
+
+export interface ResolveAuthParams {
+  network?: Network;
+  purpose: ResolveAuthPurpose;
+  recipient: string;
+  payload: string;
+}
+
+export interface ResolveAuthResponse {
+  accountId: string;
+  /** JSON-stringified authorization to pass to w_resolve_auth */
+  authorization: string;
+}
+
 export interface WalletManifest {
   id: string;
   platform: string[];
@@ -159,6 +175,7 @@ export interface WalletFeatures {
   signInAndSignMessage: boolean;
   signInWithFunctionCallKey: boolean;
   signDelegateActions: boolean;
+  resolveAuth: boolean;
   mainnet: boolean;
   testnet: boolean;
 }
@@ -207,6 +224,13 @@ export interface NearWalletBase {
   signMessage(params: SignMessageParams): Promise<SignedMessage>;
 
   signDelegateActions(params: SignDelegateActionsParams): Promise<SignDelegateActionsResponse>;
+
+  /**
+   * NEP-641: Produce an authorization blob for off-chain verification.
+   * The blob can be verified on-chain via `w_resolve_auth` view call.
+   * Only available when the wallet's `resolveAuth` feature is `true`.
+   */
+  resolveAuth?(params: ResolveAuthParams): Promise<ResolveAuthResponse>;
 }
 
 export interface EventMap {

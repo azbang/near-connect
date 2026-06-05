@@ -1,4 +1,9 @@
 import { nearActionsToConnectorActions } from "./actions";
+import {
+  defaultResolveAuthViaSignMessage,
+  isResolveAuthMethodNotFound,
+  polyfillSignInAndSignMessage,
+} from "./helpers/resolveAuth";
 import { uuid4 } from "./helpers/uuid";
 import { NearConnector } from "./NearConnector";
 import {
@@ -13,6 +18,8 @@ import {
   SignDelegateActionsParams,
   SignDelegateActionsResponse,
   type AccountWithSignedMessage,
+  type ResolveAuthParams,
+  type ResolveAuthResponse,
   type SignInAndSignMessageParams,
   type SignInParams,
 } from "./types";
@@ -51,14 +58,17 @@ export class ParentFrameWallet {
   }
 
   async signInAndSignMessage(data: SignInAndSignMessageParams): Promise<Array<AccountWithSignedMessage>> {
-    const result = await this.callParentFrame("near:signInAndSignMessage", {
-      network: data?.network ?? this.connector.network,
-      addFunctionCallKey: data?.addFunctionCallKey,
-      messageParams: data.messageParams,
-    });
-
-    if (Array.isArray(result)) return result;
-    return [result as AccountWithSignedMessage];
+    const network = data?.network ?? this.connector.network;
+    if (this.manifest.features?.signInAndSignMessage === true) {
+      const result = await this.callParentFrame("near:signInAndSignMessage", {
+        network,
+        addFunctionCallKey: data?.addFunctionCallKey,
+        messageParams: data.messageParams,
+      });
+      if (Array.isArray(result)) return result;
+      return [result as AccountWithSignedMessage];
+    }
+    return polyfillSignInAndSignMessage(this, { ...data, network });
   }
 
   async signOut(data?: { network?: Network }): Promise<void> {
@@ -103,5 +113,20 @@ export class ParentFrameWallet {
     };
 
     return this.callParentFrame("near:signDelegateActions", args) as Promise<SignDelegateActionsResponse>;
+  }
+
+  async resolveAuth(params: ResolveAuthParams): Promise<ResolveAuthResponse> {
+    const args = { ...params, network: params.network ?? this.connector.network };
+    if (this.manifest.features?.resolveAuth === true) {
+      try {
+        return (await this.callParentFrame("near:resolveAuth", args)) as ResolveAuthResponse;
+      } catch (e) {
+        // See SandboxedWallet.resolveAuth — fall through to the default
+        // signMessage-based impl when the parent frame reports the method
+        // isn't implemented.
+        if (!isResolveAuthMethodNotFound(e)) throw e;
+      }
+    }
+    return defaultResolveAuthViaSignMessage(this, args);
   }
 }
