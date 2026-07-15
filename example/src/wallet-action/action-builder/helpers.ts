@@ -61,7 +61,7 @@ export const defaultActionForm = (type: ActionType, id = makeId(), network: Netw
         publicKey: "",
         nonce: "",
         enableGasKeyInfo: false,
-        gasBalanceNear: "0.01",
+        gasBalanceNear: "0",
         gasBalanceYocto: "",
         numNonces: "1",
         permissionType: "FullAccess",
