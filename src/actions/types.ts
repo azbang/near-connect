@@ -34,6 +34,10 @@ export interface AddKeyAction {
   type: "AddKey";
   params: {
     publicKey: string;
+    gasKeyInfo?: {
+      balance: string;
+      numNonces: number;
+    }
     accessKey: {
       nonce?: number;
       permission:
@@ -74,6 +78,22 @@ export interface DeployGlobalContractAction {
   params: { code: Uint8Array; deployMode: "CodeHash" | "AccountId" };
 }
 
+export interface TransferToGasKeyAction {
+  type: "TransferToGasKey",
+  params: {
+    publicKey: string;
+    deposit: string;
+  }
+}
+
+export interface WithdrawFromGasKeyAction {
+  type: "WithdrawFromGasKey",
+  params: {
+    publicKey: string;
+    amount: string;
+  }
+}
+
 export type ConnectorAction =
   | CreateAccountAction
   | DeployContractAction
@@ -84,4 +104,6 @@ export type ConnectorAction =
   | DeleteKeyAction
   | DeleteAccountAction
   | UseGlobalContractAction
-  | DeployGlobalContractAction;
+  | DeployGlobalContractAction
+  | TransferToGasKeyAction
+  | WithdrawFromGasKeyAction;

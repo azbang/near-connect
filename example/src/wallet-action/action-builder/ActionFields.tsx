@@ -7,8 +7,10 @@ import { DeployContractFields } from "./fields/DeployContractFields.tsx";
 import { DeployGlobalContractFields } from "./fields/DeployGlobalContractFields.tsx";
 import { FunctionCallFields } from "./fields/FunctionCallFields.tsx";
 import { StakeFields } from "./fields/StakeFields.tsx";
+import { TransferToGasKeyFields } from "./fields/TransferToGasKeyFields.tsx";
 import { TransferFields } from "./fields/TransferFields.tsx";
 import { UseGlobalContractFields } from "./fields/UseGlobalContractFields.tsx";
+import { WithdrawFromGasKeyFields } from "./fields/WithdrawFromGasKeyFields.tsx";
 
 export function ActionFields(props: { value: ActionForm; onChange: (next: ActionForm) => void }) {
   const { value, onChange } = props;
@@ -25,6 +27,10 @@ export function ActionFields(props: { value: ActionForm; onChange: (next: Action
       return <StakeFields value={value} onChange={onChange} />;
     case "AddKey":
       return <AddKeyFields value={value} onChange={onChange} />;
+    case "TransferToGasKey":
+      return <TransferToGasKeyFields value={value} onChange={onChange} />;
+    case "WithdrawFromGasKey":
+      return <WithdrawFromGasKeyFields value={value} onChange={onChange} />;
     case "DeleteKey":
       return <DeleteKeyFields value={value} onChange={onChange} />;
     case "DeleteAccount":
