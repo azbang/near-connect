@@ -207,4 +207,4 @@ console.log("Transaction hash:", result.transaction.hash);
 
 ## Supported Wallets
 
-HOT Wallet, Meteor Wallet, Intear Wallet, MyNearWallet, Nightly Wallet, NEAR Mobile, Unity Wallet, OKX Wallet, Hana Wallet, and any wallet via WalletConnect.
+HOT Wallet, Meteor Wallet, Intear Wallet, MyNearWallet, Nightly Wallet, NEAR Mobile, Unity Wallet, OKX Wallet, Hana Wallet, Ethereum Wallets, and any wallet via WalletConnect.

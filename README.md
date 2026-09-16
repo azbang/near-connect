@@ -21,6 +21,7 @@ Unlike near-wallet-selector, this library provides a secure execution environmen
 - Unity Wallet
 - OKX Wallet
 - Hana Wallet
+- Ethereum Wallets
 - NEAR CLI (via [near-cli-rs](https://near.cli.rs))
 - any wallet via WalletConnect
 
