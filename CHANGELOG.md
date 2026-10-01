@@ -1,3 +1,7 @@
+# Unreleased
+
+- `IframeExecutor` dispose guard: `postMessage` after the wallet popup is rejected/disposed is now a silent no-op instead of throwing "Iframe not loaded" (surfaced as broken wallet login flows when a popup was dismissed mid-request, notably on Windows). If the iframe is alive but its `contentWindow` is missing, the error now names the method: "Iframe not loaded for \<method\>".
+
 # 0.11.5
 
 - Fix opening wallet links from a Telegram Mini App: `window.open` from the sandbox is blocked there, so https links now go through Telegram (`openTelegramLink` / `openLink`), also when the dApp does not load `telegram-web-app.js`. The open request now always gets a response.
