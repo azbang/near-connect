@@ -1,6 +1,7 @@
 # Unreleased
 
 - `IframeExecutor` dispose guard: `postMessage` after the wallet popup is rejected/disposed is now a silent no-op instead of throwing "Iframe not loaded" (surfaced as broken wallet login flows when a popup was dismissed mid-request, notably on Windows). If the iframe is alive but its `contentWindow` is missing, the error now names the method: "Iframe not loaded for \<method\>".
+- Popups: Escape closes the popup with the same semantics as clicking the backdrop, and `destroy()` disposes document-level listeners so they cannot leak per popup open.
 
 # 0.11.5
 
