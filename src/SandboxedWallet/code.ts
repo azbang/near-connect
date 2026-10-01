@@ -9,6 +9,8 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
 
   const code = args.code
     .replaceAll(".localStorage", ".sandboxedLocalStorage")
+    // Catches bare `localStorage` references (e.g. from WalletConnect SDK) not matched by the `.localStorage` replacement above
+    .replaceAll(/(?<![.\w])localStorage(?=[\.\[\(])/g, "window.sandboxedLocalStorage")
     .replaceAll("window.top", "window.selector")
     .replaceAll("window.open", "window.selector.open");
 
@@ -102,8 +104,34 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
         }
       </style>
 
+      <script${nonceAttr}>
+      window.addEventListener("error", function(event) {
+        var msg = event.message + (event.filename ? " at " + event.filename + ":" + event.lineno : "");
+        console.error("[near-connect iframe] error:", msg);
+        window.parent.postMessage({
+          method: "wallet-error",
+          origin: "${uuid}",
+          error: msg
+        }, "*");
+      });
+      window.addEventListener("unhandledrejection", function(event) {
+        console.error("[near-connect iframe] unhandledrejection:", String(event.reason));
+        window.parent.postMessage({
+          method: "wallet-error",
+          origin: "${uuid}",
+          error: String(event.reason)
+        }, "*");
+      });
+      </script>
 
       <script${nonceAttr}>
+      // Fix fetch binding in sandboxed iframe — bundled code that aliases
+      // or destructures fetch loses the window context, causing
+      // "Failed to execute 'fetch' on 'Window': Illegal invocation".
+      if (typeof fetch === 'function') {
+        window.fetch = fetch.bind(window);
+      }
+
       window.sandboxedLocalStorage = (() => {
         let storage = ${JSON.stringify(storage)}
 
@@ -128,6 +156,18 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
           },
         };
       })();
+
+      // Override the localStorage property so that any access pattern
+      // (including SES lockdown introspection) returns the proxy
+      // instead of throwing a SecurityError in the sandboxed iframe.
+      try {
+        Object.defineProperty(window, 'localStorage', {
+          get: function() { return window.sandboxedLocalStorage; },
+          configurable: true,
+        });
+      } catch (e) {
+        // Silently ignore if the property can't be redefined
+      }
 
       const showPrompt = async (args) => {
         const root = document.getElementById("root");   

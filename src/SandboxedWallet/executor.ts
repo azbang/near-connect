@@ -338,10 +338,33 @@ class SandboxExecutor {
     const code = await this.loadCode();
     this.connector.logger?.log(`Code loaded, preparing`);
 
+    // Maximum time to wait for a wallet executor to call window.selector.ready().
+    // This is the *fallback* timeout — most crashes are caught much faster by the
+    // in-iframe error reporter (wallet-error postMessage). The ceiling covers edge
+    // cases where the executor script itself fails to load (e.g., network timeout
+    // on the executor fetch) so neither ready() nor the error reporter ever fire.
+    const READY_TIMEOUT_MS = 5_000;
+
     const iframe = new IframeExecutor(this, code, this._onMessage, this.connector.cspNonce);
     this.connector.logger?.log(`Code loaded, iframe initialized`);
 
-    await iframe.readyPromise;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    try {
+      await Promise.race([
+        iframe.readyPromise,
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(
+            () => reject(new Error(`Wallet executor "${this.manifest.name}" did not initialize within ${READY_TIMEOUT_MS / 1000}s`)),
+            READY_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } catch (e) {
+      iframe.dispose();
+      throw e;
+    } finally {
+      clearTimeout(timeoutId!);
+    }
     this.connector.logger?.log(`Iframe ready`);
 
     const id = uuid4();

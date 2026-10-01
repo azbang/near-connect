@@ -1,8 +1,17 @@
+# Unreleased
+
+- **Executor crash reporting.** Sandbox iframes now report `error` and `unhandledrejection` back to the host as `wallet-error`, and the connector's ready promise rejects with a clear message instead of hanging when a wallet executor crashes on load. A 5-second fallback timeout covers the case where the executor script itself fails to load (e.g. network timeout on the executor fetch); the iframe is disposed on failure.
+- Sandbox iframe hardening: `fetch` is re-bound to `window` (bundled code that aliases/destructures fetch no longer throws "Illegal invocation"), `window.localStorage` is overridden to return the sandboxed proxy for every access pattern (including SES lockdown introspection), and bare `localStorage` references in executor code are rewritten alongside the existing `.localStorage` rewrite. All injected scripts carry the CSP nonce when `cspNonce` is set.
+
 # 0.11.5
 
 - Fix opening wallet links from a Telegram Mini App: `window.open` from the sandbox is blocked there, so https links now go through Telegram (`openTelegramLink` / `openLink`), also when the dApp does not load `telegram-web-app.js`. The open request now always gets a response.
 - Copy to clipboard from sandboxed wallets falls back to the dApp page (`clipboardWrite` permission) when the Clipboard API rejects inside the sandbox, e.g. in Android webviews.
 - A failed IndexedDB write of the executor cache (iOS Safari "Connection to Indexed Database server lost", private mode) no longer stops the wallet from opening; an executor response with an HTTP error is not cached and run.
+# Unreleased
+
+- **Executor crash reporting.** Sandbox iframes now report `error` and `unhandledrejection` back to the host as `wallet-error`, and the connector's ready promise rejects with a clear message instead of hanging when a wallet executor crashes on load. A 5-second fallback timeout covers the case where the executor script itself fails to load (e.g. network timeout on the executor fetch); the iframe is disposed on failure.
+- Sandbox iframe hardening: `fetch` is re-bound to `window` (bundled code that aliases/destructures fetch no longer throws "Illegal invocation"), `window.localStorage` is overridden to return the sandboxed proxy for every access pattern (including SES lockdown introspection), and bare `localStorage` references in executor code are rewritten alongside the existing `.localStorage` rewrite. All injected scripts carry the CSP nonce when `cspNonce` is set.
 
 # 0.11.4
 
