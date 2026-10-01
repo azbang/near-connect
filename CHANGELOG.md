@@ -1,8 +1,21 @@
+# Unreleased
+
+- **Security: `nearActionsToConnectorActions` no longer escalates unknown `AddKey` permissions to `FullAccess`.** A permission that is neither `functionCall` nor `fullAccess` (a typo, or a future gas-key permission) now throws instead of silently minting a full-access key. Pass a `ConnectorAction` explicitly if you need an unusual permission.
+- `SignedDelegate` actions inside a transaction now throw a clear error instead of being passed through; delegates are signed via `signDelegateActions`.
+- Fix `deployGlobalContract` mapping: the `AccountId` deploy mode (which near-api-js stores as `null`) now maps correctly in all shapes, and the `enum` field is treated as authoritative so the inactive variant key no longer misclassifies the mode.
+- `useGlobalContract` identifier mapping is null-safe (`AccountId: ""` no longer falls through to `codeHash`).
+
 # 0.11.5
 
 - Fix opening wallet links from a Telegram Mini App: `window.open` from the sandbox is blocked there, so https links now go through Telegram (`openTelegramLink` / `openLink`), also when the dApp does not load `telegram-web-app.js`. The open request now always gets a response.
 - Copy to clipboard from sandboxed wallets falls back to the dApp page (`clipboardWrite` permission) when the Clipboard API rejects inside the sandbox, e.g. in Android webviews.
 - A failed IndexedDB write of the executor cache (iOS Safari "Connection to Indexed Database server lost", private mode) no longer stops the wallet from opening; an executor response with an HTTP error is not cached and run.
+# Unreleased
+
+- **Security: `nearActionsToConnectorActions` no longer escalates unknown `AddKey` permissions to `FullAccess`.** A permission that is neither `functionCall` nor `fullAccess` (a typo, or a future gas-key permission) now throws instead of silently minting a full-access key. Pass a `ConnectorAction` explicitly if you need an unusual permission.
+- `SignedDelegate` actions inside a transaction now throw a clear error instead of being passed through; delegates are signed via `signDelegateActions`.
+- Fix `deployGlobalContract` mapping: the `AccountId` deploy mode (which near-api-js stores as `null`) now maps correctly in all shapes, and the `enum` field is treated as authoritative so the inactive variant key no longer misclassifies the mode.
+- `useGlobalContract` identifier mapping is null-safe (`AccountId: ""` no longer falls through to `codeHash`).
 
 # 0.11.4
 
