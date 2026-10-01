@@ -44,7 +44,12 @@ export class MyNearWalletConnector {
 
   constructor(walletUrl: string, network: Network) {
     this.walletUrl = walletUrl;
-    this.provider = new NearRpc(window.selector?.providers?.[network.networkId as "mainnet" | "testnet"] || [network.nodeUrl]);
+    // An empty providers array is truthy, so `|| [network.nodeUrl]` below would
+    // never fire and NearRpc would silently route testnet calls to mainnet.
+    // Mirror meteor.ts's explicit length check instead.
+    const providers = window.selector?.providers?.[network.networkId as "mainnet" | "testnet"];
+    const hasProviders = providers && providers.length > 0;
+    this.provider = new NearRpc(hasProviders ? providers : [network.nodeUrl]);
     this.signedAccountId = window.localStorage.getItem("signedAccountId") || "";
     this.network = network;
   }
