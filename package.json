@@ -27,6 +27,7 @@
     "prepublish": "yarn build",
     "cdn": "yarn pre-build && vite build",
     "type-check": "tsc --noEmit",
+    "test:gas-keys": "tsc --noEmit --strict --skipLibCheck --moduleResolution node --module commonjs --target ESNext test/gas-keys.ts",
     "type-check-all": "yarn run type-check && cd example && yarn run type-check && cd ../near-wallets && yarn run type-check"
   },
   "devDependencies": {

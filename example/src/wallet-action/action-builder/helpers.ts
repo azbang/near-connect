@@ -82,6 +82,9 @@ export const defaultActionForm = (type: ActionType, id = makeId(), network: Netw
       return { id, type, collapsed: false, identifierType: "AccountId", accountId: `demo.${network}`, codeHash: "" };
     case "DeployGlobalContract":
       return { id, type, collapsed: false, codeBase64: "", deployMode: "AccountId" };
+    default:
+      // Gas-key actions (TransferToGasKey / WithdrawFromGasKey) have no form yet.
+      throw new Error(`No default form for action type ${type}`);
   }
 };
 

@@ -159,6 +159,8 @@ export interface WalletFeatures {
   signInAndSignMessage: boolean;
   signInWithFunctionCallKey: boolean;
   signDelegateActions: boolean;
+  /** The wallet can sign AddKey with gasKeyInfo, TransferToGasKey and WithdrawFromGasKey (protocol 85+). Off unless verified per wallet. */
+  gasKeys?: boolean;
   mainnet: boolean;
   testnet: boolean;
 }

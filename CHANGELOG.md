@@ -1,8 +1,8 @@
-# 0.11.5
+# Unreleased
 
-- Fix opening wallet links from a Telegram Mini App: `window.open` from the sandbox is blocked there, so https links now go through Telegram (`openTelegramLink` / `openLink`), also when the dApp does not load `telegram-web-app.js`. The open request now always gets a response.
-- Copy to clipboard from sandboxed wallets falls back to the dApp page (`clipboardWrite` permission) when the Clipboard API rejects inside the sandbox, e.g. in Android webviews.
-- A failed IndexedDB write of the executor cache (iOS Safari "Connection to Indexed Database server lost", private mode) no longer stops the wallet from opening; an executor response with an HTTP error is not cached and run.
+- New manifest feature `gasKeys` with a fail-closed host-side gate. Every wallet wrapper (sandbox, injected, parent-frame) refuses gas-key actions — `AddKey` with `gasKeyInfo`, `TransferToGasKey`, `WithdrawFromGasKey` — for wallets that do not advertise the feature (`assertGasKeyActionsSupported`, exported, along with `isGasKeyAction` and the `GasKeyInfo` type). A wallet that predates gas keys would at best reject the request, and at worst ignore the unknown `gasKeyInfo` field and add a *plain* key with the permission it does understand. No bundled wallet advertises `gasKeys` yet; flipping the flag per wallet requires a verified sign-and-send first.
+
+# 0.11.5
 
 # 0.11.4
 

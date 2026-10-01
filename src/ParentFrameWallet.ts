@@ -1,4 +1,5 @@
 import { nearActionsToConnectorActions } from "./actions";
+import { assertGasKeyActionsSupported } from "./actions/gas-keys";
 import { uuid4 } from "./helpers/uuid";
 import { NearConnector } from "./NearConnector";
 import {
@@ -73,16 +74,18 @@ export class ParentFrameWallet {
 
   async signAndSendTransaction(params: SignAndSendTransactionParams): Promise<FinalExecutionOutcome> {
     const connectorActions = nearActionsToConnectorActions(params.actions);
+    assertGasKeyActionsSupported(this.manifest.features, connectorActions, this.manifest.name);
     const args = { ...params, actions: connectorActions, network: params.network ?? this.connector.network };
     return this.callParentFrame("near:signAndSendTransaction", args) as Promise<FinalExecutionOutcome>;
   }
 
   async signAndSendTransactions(params: SignAndSendTransactionsParams): Promise<Array<FinalExecutionOutcome>> {
-    const args = { ...params, network: params.network ?? this.connector.network };
-    args.transactions = args.transactions.map((transaction) => ({
+    const transactions = params.transactions.map((transaction) => ({
       actions: nearActionsToConnectorActions(transaction.actions),
       receiverId: transaction.receiverId,
     }));
+    assertGasKeyActionsSupported(this.manifest.features, transactions.flatMap((transaction) => transaction.actions), this.manifest.name);
+    const args = { ...params, transactions, network: params.network ?? this.connector.network };
 
     return this.callParentFrame("near:signAndSendTransactions", args) as Promise<Array<FinalExecutionOutcome>>;
   }
@@ -101,6 +104,7 @@ export class ParentFrameWallet {
       })),
       network: params.network || this.connector.network,
     };
+    assertGasKeyActionsSupported(this.manifest.features, args.delegateActions.flatMap((delegateAction) => delegateAction.actions), this.manifest.name);
 
     return this.callParentFrame("near:signDelegateActions", args) as Promise<SignDelegateActionsResponse>;
   }
