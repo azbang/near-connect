@@ -33,6 +33,31 @@ export const wait = (timeout: number) => {
   return new Promise<void>((resolve) => setTimeout(resolve, timeout));
 };
 
+// near-connect before 0.11.5 opens links with window.open, which Telegram Mini App blocks,
+// so reach the Telegram bridge of the dApp page directly (manifest permissions.external).
+// Works with telegram-web-app.js loaded by the dApp, or with the raw bridge on iOS/Android
+const openViaTelegram = async (link: string) => {
+  const url = new URL(link);
+  const isTgLink = url.hostname === "t.me";
+
+  try {
+    const platform = await window.selector.external("Telegram.WebApp", "platform");
+    if (platform && platform !== "unknown") {
+      await window.selector.external("Telegram.WebApp", isTgLink ? "openTelegramLink" : "openLink", link);
+      return true;
+    }
+  } catch {}
+
+  try {
+    const event = isTgLink ? "web_app_open_tg_link" : "web_app_open_link";
+    const data = isTgLink ? { path_full: url.pathname + url.search } : { url: link };
+    await window.selector.external("TelegramWebviewProxy", "postEvent", event, JSON.stringify(data));
+    return true;
+  } catch {}
+
+  return false;
+};
+
 export class RequestFailed extends Error {
   name = "RequestFailed";
   constructor(readonly payload: any) {
@@ -125,9 +150,15 @@ class HOT {
     qr?.appendChild(qrcode.canvas);
 
     // @ts-ignore
-    window.openTelegram = () => window.selector.open(`https://t.me/hot_wallet/app?startapp=${link}`); // @ts-ignore
+    window.openTelegram = async () => {
+      const url = `https://t.me/hot_wallet/app?startapp=${link}`;
+      if (!(await openViaTelegram(url))) window.selector.open(url);
+    }; // @ts-ignore
     window.openExtension = () => window.selector.open(`https://download.hot-labs.org?hotconnector`); // @ts-ignore
-    window.openMobile = () => window.selector.openNativeApp(`hotwallet://${link}`);
+    window.openMobile = async () => {
+      // Telegram does not open custom schemes, the universal link opens the app or the web fallback
+      if (!(await openViaTelegram(`https://app.hot-labs.org/link?${link}`))) window.selector.openNativeApp(`hotwallet://${link}`);
+    };
 
     const poolResponse = async () => {
       await wait(3000);
