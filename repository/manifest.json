@@ -7,7 +7,7 @@
       "icon": "https://app.hot-labs.org/images/hot/hot-icon.png",
       "description": "Secure Multichain wallet. Manage assets, refuel gas, and mine $HOT on any device with HOT Wallet",
       "website": "https://hot-labs.org/wallet",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "executor": "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/hotwallet.js",
       "type": "sandbox",
 

@@ -26,11 +26,11 @@ export const bodyMobile = /* html */ `
       </p>
 
       <div style="display: flex; gap: 12px;">
-        <button class="button simple" style="white-space: nowrap; width: 160px; margin-top: 16px; margin-bottom: 32px" onclick="window.openMobile()">
+        <button class="button simple" style="white-space: nowrap; width: 160px; margin-top: 16px; margin-bottom: 32px" data-action="mobile">
            Open Mobile
         </button>
 
-        <button class="button simple reverse" style="white-space: nowrap; width: 160px; margin-top: 16px; margin-bottom: 32px" onclick="window.openTelegram()">
+        <button class="button simple reverse" style="white-space: nowrap; width: 160px; margin-top: 16px; margin-bottom: 32px" data-action="telegram">
            Open Telegram
         </button>
       </div>
@@ -61,13 +61,13 @@ export const bodyDesktop = /* html */ `
       <h2 class="title">Approve in <span>App</span></h2>
 
       <div style="display: flex; gap: 12px;">
-        <button class="button" style="width: 240px; margin-top: 16px; margin-bottom: 32px" onclick="window.openExtension()">
+        <button class="button" style="width: 240px; margin-top: 16px; margin-bottom: 32px" data-action="extension">
            Download Extension
         </button>
       </div>
 
       <p class="text">
-        <a style="cursor: pointer" onclick="window.openTelegram()">Open via Telegram</a>
+        <a style="cursor: pointer" data-action="telegram">Open via Telegram</a>
       </p>
     </div>
 `;
