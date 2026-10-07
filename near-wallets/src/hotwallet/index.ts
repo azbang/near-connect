@@ -149,16 +149,22 @@ class HOT {
     qrcode.render();
     qr?.appendChild(qrcode.canvas);
 
-    // @ts-ignore
-    window.openTelegram = async () => {
-      const url = `https://t.me/hot_wallet/app?startapp=${link}`;
-      if (!(await openViaTelegram(url))) window.selector.open(url);
-    }; // @ts-ignore
-    window.openExtension = () => window.selector.open(`https://download.hot-labs.org?hotconnector`); // @ts-ignore
-    window.openMobile = async () => {
-      // Telegram does not open custom schemes, the universal link opens the app or the web fallback
-      if (!(await openViaTelegram(`https://app.hot-labs.org/link?${link}`))) window.selector.openNativeApp(`hotwallet://${link}`);
+    const actions: Record<string, () => void> = {
+      telegram: async () => {
+        const url = `https://t.me/hot_wallet/app?startapp=${link}`;
+        if (!(await openViaTelegram(url))) window.selector.open(url);
+      },
+      extension: () => window.selector.open(`https://download.hot-labs.org?hotconnector`),
+      mobile: async () => {
+        // Telegram does not open custom schemes, the universal link opens the app or the web fallback
+        if (!(await openViaTelegram(`https://app.hot-labs.org/link?${link}`))) window.selector.openNativeApp(`hotwallet://${link}`);
+      },
     };
+
+    // No inline onclick: the sandbox inherits the dApp CSP, and without 'unsafe-inline' inline handlers never run
+    document.querySelectorAll<HTMLElement>("[data-action]").forEach((el) => {
+      el.addEventListener("click", () => actions[el.dataset.action!]?.());
+    });
 
     const poolResponse = async () => {
       await wait(3000);
