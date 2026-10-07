@@ -1,3 +1,7 @@
+# 0.11.5
+
+- Fix opening wallet links from a Telegram Mini App: `window.open` from the sandbox is blocked there, so https links now go through Telegram (`openTelegramLink` / `openLink`), also when the dApp does not load `telegram-web-app.js`. The open request now always gets a response.
+
 # 0.11.4
 
 - Add `cspNonce` option to `NearConnector` for CSP compliance. When set, the nonce is added to both `<script>` tags inside the `srcdoc` sandbox iframe, allowing them to execute under nonce-based Content Security Policy.
