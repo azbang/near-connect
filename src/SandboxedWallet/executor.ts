@@ -2,6 +2,7 @@ import { WalletManifest, WalletPermissions } from "../types";
 import { NearConnector } from "../NearConnector";
 import { parseUrl } from "../helpers/url";
 import { uuid4 } from "../helpers/uuid";
+import { copyText } from "../helpers/clipboard";
 import { isTelegramMiniApp, openExternalLink, openTelegramLink } from "../helpers/telegram";
 
 import IframeExecutor from "./iframe";
@@ -183,6 +184,17 @@ class SandboxExecutor {
         const client = await this.connector.walletConnect;
         const result = await client.request(event.data.params);
         success(result);
+      } catch (e) {
+        failed(e);
+      }
+      return;
+    }
+
+    if (event.data.method === "clipboard.writeText") {
+      this.assertPermissions(iframe, "clipboardWrite", event);
+      try {
+        await copyText(event.data.params.text);
+        success(null);
       } catch (e) {
         failed(e);
       }
