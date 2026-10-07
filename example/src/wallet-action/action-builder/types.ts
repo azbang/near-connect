@@ -21,11 +21,27 @@ export type AddKeyForm = ActionFormBase & {
   type: "AddKey";
   publicKey: string;
   nonce: string;
+  enableGasKeyInfo: boolean;
+  gasBalanceNear: string;
+  gasBalanceYocto: string;
+  numNonces: string;
   permissionType: "FullAccess" | "FunctionCall";
   receiverId: string;
   allowanceNear: string;
   allowanceYocto: string;
   methodNamesCsv: string;
+};
+export type TransferToGasKeyForm = ActionFormBase & {
+  type: "TransferToGasKey";
+  publicKey: string;
+  depositNear: string;
+  depositYocto: string;
+};
+export type WithdrawFromGasKeyForm = ActionFormBase & {
+  type: "WithdrawFromGasKey";
+  publicKey: string;
+  amountNear: string;
+  amountYocto: string;
 };
 export type DeleteKeyForm = ActionFormBase & { type: "DeleteKey"; publicKey: string };
 export type DeleteAccountForm = ActionFormBase & { type: "DeleteAccount"; beneficiaryId: string };
@@ -48,6 +64,8 @@ export type ActionForm =
   | TransferForm
   | StakeForm
   | AddKeyForm
+  | TransferToGasKeyForm
+  | WithdrawFromGasKeyForm
   | DeleteKeyForm
   | DeleteAccountForm
   | UseGlobalContractForm
@@ -60,6 +78,8 @@ export const ACTION_TYPES: ActionType[] = [
   "Transfer",
   "Stake",
   "AddKey",
+  "TransferToGasKey",
+  "WithdrawFromGasKey",
   "DeleteKey",
   "DeleteAccount",
   "UseGlobalContract",

@@ -60,12 +60,20 @@ export const defaultActionForm = (type: ActionType, id = makeId(), network: Netw
         collapsed: false,
         publicKey: "",
         nonce: "",
+        enableGasKeyInfo: false,
+        gasBalanceNear: "0",
+        gasBalanceYocto: "",
+        numNonces: "1",
         permissionType: "FullAccess",
         receiverId: `demo.${network}`,
         allowanceNear: "0",
         allowanceYocto: "",
         methodNamesCsv: "",
       };
+    case "TransferToGasKey":
+      return { id, type, collapsed: false, publicKey: "", depositNear: "0.01", depositYocto: "" };
+    case "WithdrawFromGasKey":
+      return { id, type, collapsed: false, publicKey: "", amountNear: "0.01", amountYocto: "" };
     case "DeleteKey":
       return { id, type, collapsed: false, publicKey: "" };
     case "DeleteAccount":
@@ -105,8 +113,14 @@ export const buildConnectorAction = (a: ActionForm): ConnectorAction => {
       };
     case "AddKey": {
       const nonce = a.nonce.trim() ? Number(a.nonce.trim()) : undefined;
+      const gasKeyInfo = a.enableGasKeyInfo
+        ? {
+            balance: a.gasBalanceYocto.trim() ? a.gasBalanceYocto.trim() : toYocto(a.gasBalanceNear),
+            numNonces: Number(a.numNonces.trim()),
+          }
+        : undefined;
       if (a.permissionType === "FullAccess") {
-        return { type: "AddKey", params: { publicKey: a.publicKey, accessKey: { nonce, permission: "FullAccess" } } };
+        return { type: "AddKey", params: { publicKey: a.publicKey, gasKeyInfo, accessKey: { nonce, permission: "FullAccess" } } };
       }
       const methodNames = a.methodNamesCsv
         .split(",")
@@ -117,6 +131,7 @@ export const buildConnectorAction = (a: ActionForm): ConnectorAction => {
         type: "AddKey",
         params: {
           publicKey: a.publicKey,
+          gasKeyInfo,
           accessKey: {
             nonce,
             permission: {
@@ -128,6 +143,22 @@ export const buildConnectorAction = (a: ActionForm): ConnectorAction => {
         },
       };
     }
+    case "TransferToGasKey":
+      return {
+        type: "TransferToGasKey",
+        params: {
+          publicKey: a.publicKey,
+          deposit: a.depositYocto.trim() ? a.depositYocto.trim() : toYocto(a.depositNear),
+        },
+      };
+    case "WithdrawFromGasKey":
+      return {
+        type: "WithdrawFromGasKey",
+        params: {
+          publicKey: a.publicKey,
+          amount: a.amountYocto.trim() ? a.amountYocto.trim() : toYocto(a.amountNear),
+        },
+      };
     case "DeleteKey":
       return { type: "DeleteKey", params: { publicKey: a.publicKey } };
     case "DeleteAccount":
