@@ -1,6 +1,7 @@
 # 0.11.5
 
 - Fix opening wallet links from a Telegram Mini App: `window.open` from the sandbox is blocked there, so https links now go through Telegram (`openTelegramLink` / `openLink`), also when the dApp does not load `telegram-web-app.js`. The open request now always gets a response.
+- Copy to clipboard from sandboxed wallets falls back to the dApp page (`clipboardWrite` permission) when the Clipboard API rejects inside the sandbox, e.g. in Android webviews.
 
 # 0.11.4
 
