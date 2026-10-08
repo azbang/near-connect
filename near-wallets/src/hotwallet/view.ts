@@ -35,6 +35,11 @@ export const bodyMobile = /* html */ `
         </button>
       </div>
 
+      <div class="waiting" hidden>
+        <div class="spinner"></div>
+        <p class="text">Waiting for approval in HOT Wallet…</p>
+      </div>
+
       <a class="get-button" href="https://hot-labs.org/wallet/" target="_blank">
         <p class="text get-button-text">
           Don’t have HOT wallet?
@@ -69,5 +74,10 @@ export const bodyDesktop = /* html */ `
       <p class="text">
         <a style="cursor: pointer" data-action="telegram">Open via Telegram</a>
       </p>
+
+      <div class="waiting" style="margin-top: 16px" hidden>
+        <div class="spinner"></div>
+        <p class="text">Waiting for approval in HOT Wallet…</p>
+      </div>
     </div>
 `;
