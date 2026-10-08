@@ -161,21 +161,41 @@ class HOT {
       },
     };
 
+    // After the user went to the wallet show that we are waiting, the response may take a while to arrive
+    const showWaiting = () => document.querySelector(".waiting")?.removeAttribute("hidden");
+
     // No inline onclick: the sandbox inherits the dApp CSP, and without 'unsafe-inline' inline handlers never run
     document.querySelectorAll<HTMLElement>("[data-action]").forEach((el) => {
-      el.addEventListener("click", () => actions[el.dataset.action!]?.());
+      el.addEventListener("click", () => {
+        if (el.dataset.action !== "extension") showWaiting();
+        actions[el.dataset.action!]?.();
+      });
     });
 
-    const poolResponse = async () => {
-      await wait(3000);
+    // Back from the wallet: poll right away instead of waiting for the next tick
+    let wakeUp: (() => void) | null = null;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") wakeUp?.();
+    };
+
+    const poolResponse = async (): Promise<any> => {
+      await new Promise<void>((resolve) => {
+        wakeUp = resolve;
+        setTimeout(resolve, 3000);
+      });
+
       const data: any = await this.getResponse(requestId).catch(() => null);
       if (data == null) return await poolResponse();
       if (data.success) return data.payload;
       throw new RequestFailed(data.payload);
     };
 
-    const result = await poolResponse();
-    return result;
+    document.addEventListener("visibilitychange", onVisible);
+    try {
+      return await poolResponse();
+    } finally {
+      document.removeEventListener("visibilitychange", onVisible);
+    }
   }
 }
 

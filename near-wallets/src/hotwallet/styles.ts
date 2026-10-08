@@ -254,6 +254,39 @@ input::-webkit-inner-spin-button {
   margin: 0;
 }
 
+.waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: -16px;
+  margin-bottom: 24px;
+}
+
+.waiting[hidden] {
+  display: none;
+}
+
+.waiting .text {
+  font-size: 14px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--text-orange, #e9c363);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .text.description {
   margin-top: 6px;
   color: var(--text-primary, #ebdedc);
