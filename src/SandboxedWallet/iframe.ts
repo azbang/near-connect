@@ -14,15 +14,24 @@ class IframeExecutor {
 
   private handler: (event: MessageEvent<any>) => void;
   private readyPromiseResolve!: (value: void) => void;
-  readonly readyPromise = new Promise<void>((resolve) => {
+  private readyPromiseReject!: (reason: Error) => void;
+  readonly readyPromise = new Promise<void>((resolve, reject) => {
     this.readyPromiseResolve = resolve;
+    this.readyPromiseReject = reject;
   });
 
   constructor(readonly executor: SandboxExecutor, code: string, onMessage: (iframe: IframeExecutor, event: MessageEvent) => void, cspNonce?: string) {
     this.origin = uuid4();
     this.handler = (event: MessageEvent<any>) => {
       if (event.data.origin !== this.origin) return;
-      if (event.data.method === "wallet-ready") this.readyPromiseResolve();
+      if (event.data.method === "wallet-ready") {
+        this.executor.connector.logger?.log(`wallet-ready received for "${this.executor.manifest.name}"`);
+        this.readyPromiseResolve();
+      }
+      if (event.data.method === "wallet-error") {
+        console.error(`[near-connect] wallet-error for "${this.executor.manifest.name}":`, event.data.error);
+        this.readyPromiseReject(new Error(`Wallet executor crashed: ${event.data.error}`));
+      }
       onMessage(this, event);
     };
 
