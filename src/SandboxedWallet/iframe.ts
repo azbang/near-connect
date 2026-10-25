@@ -34,6 +34,10 @@ class IframeExecutor {
     if (this.executor.checkPermissions("clipboardRead")) iframeAllowedPermissions.push("clipboard-read;");
     if (this.executor.checkPermissions("clipboardWrite")) iframeAllowedPermissions.push("clipboard-write;");
     if (this.executor.checkPermissions("bluetooth")) iframeAllowedPermissions.push("bluetooth *;");
+    if (this.executor.checkPermissions("webauthn")) {
+      iframeAllowedPermissions.push("publickey-credentials-create *;");
+      iframeAllowedPermissions.push("publickey-credentials-get *;");
+    }
     this.iframe.allow = iframeAllowedPermissions.join(" ");
     this.iframe.setAttribute("sandbox", "allow-scripts");
 

@@ -77,6 +77,70 @@ class SandboxExecutor {
       return;
     }
 
+    if (event.data.method === "webauthn.create") {
+      this.assertPermissions(iframe, "webauthn", event);
+      try {
+        const options = event.data.params;
+        // Reconstruct ArrayBuffer fields from serialized arrays
+        if (options.challenge) options.challenge = new Uint8Array(options.challenge).buffer;
+        if (options.user?.id) options.user.id = new Uint8Array(options.user.id).buffer;
+        if (options.excludeCredentials) {
+          options.excludeCredentials = options.excludeCredentials.map((c: any) => ({
+            ...c,
+            id: new Uint8Array(c.id).buffer,
+          }));
+        }
+
+        const credential = await navigator.credentials.create({ publicKey: options });
+        if (!(credential instanceof PublicKeyCredential)) throw new Error("Invalid credential");
+        const response = credential.response as AuthenticatorAttestationResponse;
+
+        const result: any = {
+          rawId: Array.from(new Uint8Array(credential.rawId)),
+          clientDataJSON: Array.from(new Uint8Array(response.clientDataJSON)),
+          attestationObject: Array.from(new Uint8Array(response.attestationObject)),
+        };
+
+        if (typeof response.getPublicKey === "function") {
+          const spki = response.getPublicKey();
+          result.publicKey = spki ? Array.from(new Uint8Array(spki)) : null;
+        }
+
+        success(result);
+      } catch (e) {
+        failed(e instanceof Error ? e.message : String(e));
+      }
+      return;
+    }
+
+    if (event.data.method === "webauthn.get") {
+      this.assertPermissions(iframe, "webauthn", event);
+      try {
+        const options = event.data.params;
+        if (options.challenge) options.challenge = new Uint8Array(options.challenge).buffer;
+        if (options.allowCredentials) {
+          options.allowCredentials = options.allowCredentials.map((c: any) => ({
+            ...c,
+            id: new Uint8Array(c.id).buffer,
+          }));
+        }
+
+        const credential = await navigator.credentials.get({ publicKey: options });
+        if (!(credential instanceof PublicKeyCredential)) throw new Error("Invalid credential");
+        const response = credential.response as AuthenticatorAssertionResponse;
+
+        success({
+          rawId: Array.from(new Uint8Array(credential.rawId)),
+          signature: Array.from(new Uint8Array(response.signature)),
+          authenticatorData: Array.from(new Uint8Array(response.authenticatorData)),
+          clientDataJSON: Array.from(new Uint8Array(response.clientDataJSON)),
+        });
+      } catch (e) {
+        failed(e instanceof Error ? e.message : String(e));
+      }
+      return;
+    }
+
     if (event.data.method === "storage.set") {
       this.assertPermissions(iframe, "storage", event);
       localStorage.setItem(`${this.storageSpace}:${event.data.params.key}`, event.data.params.value);

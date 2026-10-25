@@ -1,3 +1,8 @@
+# Unreleased
+
+- **WebAuthn support for sandboxed wallets.** New `webauthn` wallet permission; when granted, sandboxed wallets can call `webauthn.create` / `webauthn.get` (bridged to `navigator.credentials` on the dApp page, with the iframe granted `publickey-credentials-create` / `publickey-credentials-get`), enabling passkey-based signing. Ported from NEAR-DevHub/near-connect passkeys.
+- `signOut` no longer clears a sandboxed wallet's storage space. Wallet-scoped storage (including passkey credentials) must survive sign-out; the dApp can still drop it by removing the wallet. ⚠️ Behavioral change: any storage a sandboxed wallet wrote is kept after sign-out.
+
 # 0.11.5
 
 - Fix opening wallet links from a Telegram Mini App: `window.open` from the sandbox is blocked there, so https links now go through Telegram (`openTelegramLink` / `openLink`), also when the dApp does not load `telegram-web-app.js`. The open request now always gets a response.
