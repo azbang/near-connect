@@ -7,6 +7,7 @@ import SandboxExecutor from "./executor";
 
 class IframeExecutor {
   readonly origin: string;
+  disposed = false;
 
   private iframe = document.createElement("iframe");
   private events = new EventEmitter<{ close: {} }>();
@@ -47,6 +48,7 @@ class IframeExecutor {
       iframe: this.iframe,
       onApprove: () => {},
       onReject: () => {
+        this.disposed = true;
         window.removeEventListener("message", this.handler);
         this.events.emit("close", {});
         this.popup.destroy();
@@ -69,11 +71,14 @@ class IframeExecutor {
   }
 
   postMessage(data: any) {
-    if (!this.iframe.contentWindow) throw new Error("Iframe not loaded");
-    this.iframe.contentWindow.postMessage({ ...data, origin: this.origin }, "*");
+    if (this.disposed) return;
+    const contentWindow = this.iframe.contentWindow;
+    if (!contentWindow) throw new Error(`Iframe not loaded for ${data?.method ?? "unknown method"}`);
+    contentWindow.postMessage({ ...data, origin: this.origin }, "*");
   }
 
   dispose() {
+    this.disposed = true;
     window.removeEventListener("message", this.handler);
     this.popup.destroy();
   }
