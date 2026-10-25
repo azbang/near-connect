@@ -279,6 +279,15 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
           },
         },
 
+        webauthn: {
+          async create(options) {
+            return await window.selector.call("webauthn.create", options);
+          },
+          async get(options) {
+            return await window.selector.call("webauthn.get", options);
+          },
+        },
+
         storage: {
           async set(key, value) {
             await window.selector.call("storage.set", { key, value });
