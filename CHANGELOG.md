@@ -7,6 +7,7 @@
 - `SignedDelegate` actions inside a transaction now throw a clear error instead of being passed through; delegates are signed via `signDelegateActions`.
 - Fix `deployGlobalContract` mapping: the `AccountId` deploy mode (which near-api-js stores as `null`) now maps correctly in all shapes, and the `enum` field is treated as authoritative so the inactive variant key no longer misclassifies the mode.
 - `useGlobalContract` identifier mapping is null-safe (`AccountId: ""` no longer falls through to `codeHash`).
+- New manifest feature `gasKeys` with a fail-closed host-side gate. Every wallet wrapper (sandbox, injected, parent-frame) refuses gas-key actions — `AddKey` with `gasKeyInfo`, `TransferToGasKey`, `WithdrawFromGasKey` — for wallets that do not advertise the feature (`assertGasKeyActionsSupported`, exported, along with `isGasKeyAction` and the `GasKeyInfo` type). A wallet that predates gas keys would at best reject the request, and at worst ignore the unknown `gasKeyInfo` field and add a *plain* key with the permission it does understand. No bundled wallet advertises `gasKeys` yet; flipping the flag per wallet requires a verified sign-and-send first.
 
 # 0.11.5
 

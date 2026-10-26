@@ -6,7 +6,13 @@ export { NearConnector } from "./NearConnector";
 export type { NearConnectorOptions } from "./NearConnector";
 
 export { nearActionsToConnectorActions } from "./actions";
-export type { ConnectorAction } from "./actions/types";
+export type {
+  ConnectorAction,
+  GasKeyInfo,
+  TransferToGasKeyAction,
+  WithdrawFromGasKeyAction,
+} from "./actions/types";
+export { isGasKeyAction, assertGasKeyActionsSupported } from "./actions/gas-keys";
 export type { WalletPlugin } from "./types/plugin";
 
 export type {

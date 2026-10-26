@@ -15,6 +15,7 @@ import {
 } from "./types";
 import { NearConnector } from "./NearConnector";
 import { nearActionsToConnectorActions } from "./actions";
+import { assertGasKeyActionsSupported } from "./actions/gas-keys";
 
 export class InjectedWallet implements NearWalletBase {
   constructor(
@@ -51,6 +52,7 @@ export class InjectedWallet implements NearWalletBase {
 
   async signAndSendTransaction(params: SignAndSendTransactionParams): Promise<FinalExecutionOutcome> {
     const actions = nearActionsToConnectorActions(params.actions);
+    assertGasKeyActionsSupported(this.manifest.features, actions, this.manifest.name);
     const network = params.network ?? this.connector.network;
 
     const result = await this.wallet.signAndSendTransaction({ ...params, actions, network });
@@ -67,6 +69,7 @@ export class InjectedWallet implements NearWalletBase {
       actions: nearActionsToConnectorActions(transaction.actions),
       receiverId: transaction.receiverId,
     }));
+    assertGasKeyActionsSupported(this.manifest.features, transactions.flatMap((transaction) => transaction.actions), this.manifest.name);
 
     const result = await this.wallet.signAndSendTransactions({ ...params, transactions, network });
     if (!result) throw new Error("No result from wallet");
@@ -81,12 +84,14 @@ export class InjectedWallet implements NearWalletBase {
   }
 
   async signDelegateActions(params: SignDelegateActionsParams): Promise<SignDelegateActionsResponse> {
+    const delegateActions = params.delegateActions.map((delegateAction) => ({
+      ...delegateAction,
+      actions: nearActionsToConnectorActions(delegateAction.actions),
+    }));
+    assertGasKeyActionsSupported(this.manifest.features, delegateActions.flatMap((delegateAction) => delegateAction.actions), this.manifest.name);
     return this.wallet.signDelegateActions({
       ...params,
-      delegateActions: params.delegateActions.map((delegateAction) => ({
-        ...delegateAction,
-        actions: nearActionsToConnectorActions(delegateAction.actions),
-      })),
+      delegateActions,
       network: params.network ?? this.connector.network,
     });
   }
