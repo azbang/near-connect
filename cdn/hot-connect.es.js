@@ -1,4 +1,4 @@
-class k {
+class C {
   async get(e) {
     return typeof window > "u" ? null : localStorage.getItem(e);
   }
@@ -9,8 +9,8 @@ class k {
     typeof window > "u" || localStorage.removeItem(e);
   }
 }
-const m = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-function S(r) {
+const y = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function I(r) {
   if (r.length === 0) return "";
   let e = 0, t = 0;
   for (; t < r.length && r[t] === 0; )
@@ -26,25 +26,27 @@ function S(r) {
   for (; n.length > 0 && n[n.length - 1] === 0; ) n.pop();
   let s = "";
   for (let o = 0; o < e; o++)
-    s += m[0];
+    s += y[0];
   for (let o = n.length - 1; o >= 0; --o)
-    s += m[n[o]];
+    s += y[n[o]];
   return s;
 }
-const C = (r) => {
+const E = (r) => {
   try {
     return JSON.parse(new TextDecoder().decode(r));
   } catch {
     return r;
   }
-}, h = (r) => r.map((e) => {
+}, $ = (r) => r.enum != null ? r.enum === "fullAccess" : "fullAccess" in r, P = (r) => r.enum != null ? r.enum === "AccountId" : "AccountId" in r, h = (r) => r.map((e) => {
   if ("type" in e) return e;
+  if (e.signedDelegate)
+    throw new Error("SignedDelegate actions cannot be sent through the wallet connector; wallets sign delegates via signDelegateActions");
   if (e.functionCall)
     return {
       type: "FunctionCall",
       params: {
         methodName: e.functionCall.methodName,
-        args: C(e.functionCall.args),
+        args: E(e.functionCall.args),
         gas: e.functionCall.gas.toString(),
         deposit: e.functionCall.deposit.toString()
       }
@@ -54,18 +56,20 @@ const C = (r) => {
       type: "DeployGlobalContract",
       params: {
         code: e.deployGlobalContract.code,
-        deployMode: e.deployGlobalContract.deployMode.AccountId ? "AccountId" : "CodeHash"
+        deployMode: P(e.deployGlobalContract.deployMode) ? "AccountId" : "CodeHash"
       }
     };
   if (e.createAccount)
     return { type: "CreateAccount" };
-  if (e.useGlobalContract)
+  if (e.useGlobalContract) {
+    const t = e.useGlobalContract.contractIdentifier;
     return {
       type: "UseGlobalContract",
       params: {
-        contractIdentifier: e.useGlobalContract.contractIdentifier.AccountId ? { accountId: e.useGlobalContract.contractIdentifier.AccountId } : { codeHash: S(e.useGlobalContract.contractIdentifier.CodeHash) }
+        contractIdentifier: t.AccountId != null ? { accountId: t.AccountId } : { codeHash: I(t.CodeHash) }
       }
     };
+  }
   if (e.deployContract)
     return {
       type: "DeployContract",
@@ -94,32 +98,52 @@ const C = (r) => {
         publicKey: e.stake.publicKey.toString()
       }
     };
-  if (e.addKey)
+  if (e.addKey) {
+    const { permission: t } = e.addKey.accessKey;
+    let n;
+    if (t.functionCall)
+      n = {
+        receiverId: t.functionCall.receiverId,
+        allowance: t.functionCall.allowance?.toString(),
+        methodNames: t.functionCall.methodNames
+      };
+    else if ($(t))
+      n = "FullAccess";
+    else
+      throw new Error(
+        "Unsupported access-key permission on AddKey: only functionCall and fullAccess can be sent through the wallet connector (pass a ConnectorAction otherwise)"
+      );
     return {
       type: "AddKey",
       params: {
         publicKey: e.addKey.publicKey.toString(),
         accessKey: {
           nonce: Number(e.addKey.accessKey.nonce),
-          permission: e.addKey.accessKey.permission.functionCall ? {
-            receiverId: e.addKey.accessKey.permission.functionCall.receiverId,
-            allowance: e.addKey.accessKey.permission.functionCall.allowance?.toString(),
-            methodNames: e.addKey.accessKey.permission.functionCall.methodNames
-          } : "FullAccess"
+          permission: n
         }
       }
     };
+  }
   throw new Error("Unsupported action type");
-}), g = () => typeof window < "u" && typeof window.crypto < "u" && typeof window.crypto.randomUUID == "function" ? window.crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(r) {
+}), M = (r) => r.type === "TransferToGasKey" || r.type === "WithdrawFromGasKey" || r.type === "AddKey" && r.params.gasKeyInfo != null;
+function u(r, e, t) {
+  if (r?.gasKeys) return;
+  const n = e.filter(M).map((s) => s.type);
+  if (n.length !== 0)
+    throw new Error(
+      `${t} does not advertise gas-key support (manifest features.gasKeys), so ${[...new Set(n)].join(", ")} cannot be sent through it; a wallet that does not know gasKeyInfo could add a plain key instead. Sign locally with a full-access key, or use a wallet whose manifest sets features.gasKeys.`
+    );
+}
+const f = () => typeof window < "u" && typeof window.crypto < "u" && typeof window.crypto.randomUUID == "function" ? window.crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(r) {
   const e = Math.random() * 16 | 0;
   return (r === "x" ? e : e & 3 | 8).toString(16);
 });
-class I {
+class N {
   constructor(e, t) {
     this.connector = e, this.manifest = t;
   }
   callParentFrame(e, t) {
-    const n = g();
+    const n = f();
     return window.parent.postMessage({ type: "near-wallet-injected-request", id: n, method: e, params: t }, "*"), new Promise((s, o) => {
       const a = (i) => {
         i.data.type === "near-wallet-injected-response" && i.data.id === n && (window.removeEventListener("message", a), i.data.success ? s(i.data.result) : o(i.data.error));
@@ -151,15 +175,19 @@ class I {
     return this.callParentFrame("near:getAccounts", t);
   }
   async signAndSendTransaction(e) {
-    const t = h(e.actions), n = { ...e, actions: t, network: e.network ?? this.connector.network };
+    const t = h(e.actions);
+    u(this.manifest.features, t, this.manifest.name);
+    const n = { ...e, actions: t, network: e.network ?? this.connector.network };
     return this.callParentFrame("near:signAndSendTransaction", n);
   }
   async signAndSendTransactions(e) {
-    const t = { ...e, network: e.network ?? this.connector.network };
-    return t.transactions = t.transactions.map((n) => ({
-      actions: h(n.actions),
-      receiverId: n.receiverId
-    })), this.callParentFrame("near:signAndSendTransactions", t);
+    const t = e.transactions.map((s) => ({
+      actions: h(s.actions),
+      receiverId: s.receiverId
+    }));
+    u(this.manifest.features, t.flatMap((s) => s.actions), this.manifest.name);
+    const n = { ...e, transactions: t, network: e.network ?? this.connector.network };
+    return this.callParentFrame("near:signAndSendTransactions", n);
   }
   async signMessage(e) {
     const t = { ...e, network: e.network ?? this.connector.network };
@@ -174,17 +202,53 @@ class I {
       })),
       network: e.network || this.connector.network
     };
-    return this.callParentFrame("near:signDelegateActions", t);
+    return u(this.manifest.features, t.delegateActions.flatMap((n) => n.actions), this.manifest.name), this.callParentFrame("near:signDelegateActions", t);
   }
 }
-const u = (r) => {
+const w = (r) => {
   try {
     return new URL(r);
   } catch {
     return null;
   }
+}, W = async (r) => {
+  try {
+    await navigator.clipboard.writeText(r);
+    return;
+  } catch {
+  }
+  const e = document.createElement("textarea");
+  e.value = r, e.setAttribute("readonly", ""), e.style.position = "fixed", e.style.opacity = "0", document.body.appendChild(e), e.select();
+  try {
+    if (!document.execCommand("copy")) throw new Error("Copy failed");
+  } finally {
+    e.remove();
+  }
+}, p = () => {
+  const r = window?.Telegram?.WebApp;
+  return !r || !r.platform || r.platform === "unknown" ? null : r;
+}, L = () => {
+  try {
+    return location.hash.includes("tgWebAppData") ? !0 : !!sessionStorage.getItem("__telegram__initParams");
+  } catch {
+    return !1;
+  }
+}, D = () => typeof window > "u" ? !1 : !!p() || !!window.TelegramWebviewProxy || L(), x = (r, e) => {
+  const t = window.TelegramWebviewProxy;
+  if (t?.postEvent) return t.postEvent(r, JSON.stringify(e));
+  const n = window.external;
+  if (n && "notify" in n) return n.notify(JSON.stringify({ eventType: r, eventData: e }));
+  window.parent !== window && window.parent.postMessage(JSON.stringify({ eventType: r, eventData: e }), "https://web.telegram.org");
+}, K = (r) => {
+  const e = p();
+  if (e) return e.openTelegramLink(r.toString());
+  x("web_app_open_tg_link", { path_full: r.pathname + r.search });
+}, T = (r) => {
+  const e = p();
+  if (e) return e.openLink(r.toString());
+  x("web_app_open_link", { url: r.toString() });
 };
-class y {
+class v {
   /** Internal storage for event callbacks */
   events = {};
   /**
@@ -235,27 +299,27 @@ class y {
     e ? delete this.events[e] : this.events = {};
   }
 }
-function A(r) {
+function F(r) {
   return r.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
-const f = Symbol("htmlTag");
+const m = Symbol("htmlTag");
 function d(r, ...e) {
   let t = r[0];
   for (let n = 0; n < e.length; n++) {
     for (const s of Array.isArray(e[n]) ? e[n] : [e[n]]) {
-      const o = s?.[f] ? s[f] : A(String(s ?? ""));
+      const o = s?.[m] ? s[m] : F(String(s ?? ""));
       t += o;
     }
     t += r[n + 1];
   }
   return Object.freeze({
-    [f]: t,
+    [m]: t,
     get html() {
       return t;
     }
   });
 }
-const E = (r) => (
+const j = (r) => (
   /*css*/
   `
 ${r} * {
@@ -515,12 +579,12 @@ ${r} .connect-item p {
   margin: 0;
 }
 `
-), x = `n${Math.random().toString(36).substring(2, 15)}`;
+), k = `n${Math.random().toString(36).substring(2, 15)}`;
 if (typeof document < "u") {
   const r = document.createElement("style");
-  r.textContent = E(`.${x}`), document.head.append(r);
+  r.textContent = j(`.${k}`), document.head.append(r);
 }
-class b {
+class S {
   constructor(e) {
     this.delegate = e;
   }
@@ -536,19 +600,23 @@ class b {
     s && (s.addEventListener(t, n), this.disposables.push(() => s.removeEventListener(t, n)));
   }
   handlers() {
-    this.disposables.forEach((n) => n()), this.disposables = [];
+    this.disposables.forEach((s) => s()), this.disposables = [];
     const e = this.root.querySelector(".modal-container"), t = this.root.querySelector(".modal-content");
-    t.onclick = (n) => n.stopPropagation(), e.onclick = () => {
+    t.onclick = (s) => s.stopPropagation(), e.onclick = () => {
       this.delegate.onReject(), this.destroy();
     };
+    const n = (s) => {
+      s.key === "Escape" && (this.delegate.onReject(), this.destroy());
+    };
+    document.addEventListener("keydown", n), this.disposables.push(() => document.removeEventListener("keydown", n));
   }
   update(e) {
     this.state = { ...this.state, ...e }, this.root.innerHTML = this.dom.html, this.handlers();
   }
   create({ show: e = !0 }) {
-    this.root.className = `${x} hot-connector-popup`, this.root.innerHTML = this.dom.html, document.body.append(this.root), this.handlers();
+    this.root.className = `${k} hot-connector-popup`, this.root.style.display = "none", this.root.innerHTML = this.dom.html, document.body.append(this.root), this.handlers();
     const t = this.root.querySelector(".modal-container"), n = this.root.querySelector(".modal-content");
-    n.style.transform = "translateY(50px)", t.style.opacity = "0", this.root.style.display = "none", e && setTimeout(() => this.show(), 10);
+    n.style.transform = "translateY(50px)", t.style.opacity = "0", e && setTimeout(() => this.show(), 10);
   }
   show() {
     const e = this.root.querySelector(".modal-container"), t = this.root.querySelector(".modal-content");
@@ -563,12 +631,12 @@ class b {
     }, 200);
   }
   destroy() {
-    this.isClosed || (this.isClosed = !0, this.hide(), setTimeout(() => {
+    this.isClosed || (this.isClosed = !0, this.disposables.forEach((e) => e()), this.disposables = [], this.hide(), setTimeout(() => {
       this.root.remove();
     }, 200));
   }
 }
-class $ extends b {
+class O extends S {
   constructor(e) {
     super(e), this.delegate = e;
   }
@@ -597,8 +665,8 @@ class $ extends b {
     </div>`;
   }
 }
-const P = "0.11.4";
-async function M(r) {
+const q = "0.12.0";
+async function _(r) {
   const e = await r.executor.getAllStorage(), t = r.executor.connector.providers, n = r.executor.manifest, s = r.id, o = r.code.replaceAll(".localStorage", ".sandboxedLocalStorage").replaceAll("window.top", "window.selector").replaceAll("window.open", "window.selector.open"), a = r.cspNonce ? ` nonce="${r.cspNonce.replace(/[^A-Za-z0-9+/=]/g, "")}"` : "";
   return (
     /* html */
@@ -770,7 +838,7 @@ async function M(r) {
       window.selector = {
         wallet: null,
         location: "${window.location.href}",
-        nearConnectVersion: "${P}",
+        nearConnectVersion: "${q}",
         
         outerHeight: ${window.outerHeight},
         screenY: ${window.screenY},
@@ -886,6 +954,21 @@ async function M(r) {
         },
       };
 
+      // Clipboard API often rejects inside the sandbox (Android WebView), copy through the dApp page then.
+      // Plain assignment to navigator.clipboard is a no-op (getter on the prototype), so redefine the method
+      const clipboard = navigator.clipboard || {};
+      const nativeWriteText = clipboard.writeText ? clipboard.writeText.bind(clipboard) : null;
+      Object.defineProperty(clipboard, "writeText", {
+        configurable: true,
+        value: async (text) => {
+          try {
+            if (nativeWriteText) return await nativeWriteText(text);
+          } catch {}
+          await window.selector.call("clipboard.writeText", { text });
+        },
+      });
+      if (!navigator.clipboard) Object.defineProperty(navigator, "clipboard", { configurable: true, value: clipboard });
+
       window.addEventListener("message", async (event) => {
         if (event.data.origin !== "${s}") return;
         if (!event.data.method?.startsWith("wallet:")) return;
@@ -916,27 +999,28 @@ async function M(r) {
     `
   );
 }
-class N {
+class z {
   constructor(e, t, n, s) {
-    this.executor = e, this.origin = g(), this.handler = (a) => {
+    this.executor = e, this.origin = f(), this.handler = (a) => {
       a.data.origin === this.origin && (a.data.method === "wallet-ready" && this.readyPromiseResolve(), n(this, a));
     }, window.addEventListener("message", this.handler);
     const o = [];
-    this.executor.checkPermissions("usb") && o.push("usb *;"), this.executor.checkPermissions("hid") && o.push("hid *;"), this.executor.checkPermissions("clipboardRead") && o.push("clipboard-read;"), this.executor.checkPermissions("clipboardWrite") && o.push("clipboard-write;"), this.executor.checkPermissions("bluetooth") && o.push("bluetooth *;"), this.iframe.allow = o.join(" "), this.iframe.setAttribute("sandbox", "allow-scripts"), M({ id: this.origin, executor: this.executor, code: t, cspNonce: s }).then((a) => {
+    this.executor.checkPermissions("usb") && o.push("usb *;"), this.executor.checkPermissions("hid") && o.push("hid *;"), this.executor.checkPermissions("clipboardRead") && o.push("clipboard-read;"), this.executor.checkPermissions("clipboardWrite") && o.push("clipboard-write;"), this.executor.checkPermissions("bluetooth") && o.push("bluetooth *;"), this.iframe.allow = o.join(" "), this.iframe.setAttribute("sandbox", "allow-scripts"), _({ id: this.origin, executor: this.executor, code: t, cspNonce: s }).then((a) => {
       this.executor.connector.logger?.log("Iframe code injected"), this.iframe.srcdoc = a;
-    }), this.popup = new $({
+    }), this.popup = new O({
       footer: this.executor.connector.footerBranding,
       iframe: this.iframe,
       onApprove: () => {
       },
       onReject: () => {
-        window.removeEventListener("message", this.handler), this.events.emit("close", {}), this.popup.destroy();
+        this.disposed = !0, window.removeEventListener("message", this.handler), this.events.emit("close", {}), this.popup.destroy();
       }
     }), this.popup.create();
   }
   origin;
+  disposed = !1;
   iframe = document.createElement("iframe");
-  events = new y();
+  events = new v();
   popup;
   handler;
   readyPromiseResolve;
@@ -953,15 +1037,17 @@ class N {
     this.popup.hide();
   }
   postMessage(e) {
-    if (!this.iframe.contentWindow) throw new Error("Iframe not loaded");
-    this.iframe.contentWindow.postMessage({ ...e, origin: this.origin }, "*");
+    if (this.disposed) return;
+    const t = this.iframe.contentWindow;
+    if (!t) throw new Error(`Iframe not loaded for ${e?.method ?? "unknown method"}`);
+    t.postMessage({ ...e, origin: this.origin }, "*");
   }
   dispose() {
-    window.removeEventListener("message", this.handler), this.popup.destroy();
+    this.disposed = !0, window.removeEventListener("message", this.handler), this.popup.destroy();
   }
 }
-const L = g();
-class W {
+const B = f();
+class R {
   constructor(e, t) {
     this.connector = e, this.manifest = t, this.storageSpace = t.id;
   }
@@ -975,9 +1061,9 @@ class W {
       return !n || !t?.entity ? !1 : n.includes(t.entity);
     }
     if (e === "allowsOpen") {
-      const n = u(t?.url || ""), s = this.manifest.permissions.allowsOpen;
+      const n = w(t?.url || ""), s = this.manifest.permissions.allowsOpen;
       return !n || !s || !Array.isArray(s) || s.length === 0 ? !1 : s.some((a) => {
-        const i = u(a);
+        const i = w(a);
         return !(!i || n.protocol !== i.protocol || i.hostname && n.hostname !== i.hostname || i.pathname && i.pathname !== "/" && n.pathname !== i.pathname);
       });
     }
@@ -1087,10 +1173,19 @@ class W {
       }
       return;
     }
+    if (t.data.method === "clipboard.writeText") {
+      this.assertPermissions(e, "clipboardWrite", t);
+      try {
+        await W(t.data.params.text), n(null);
+      } catch (o) {
+        s(o);
+      }
+      return;
+    }
     if (t.data.method === "external") {
       this.assertPermissions(e, "external", t);
       try {
-        const { entity: o, key: a, args: i } = t.data.params, l = o.split(".").reduce((w, v) => w[v], window);
+        const { entity: o, key: a, args: i } = t.data.params, l = o.split(".").reduce((g, A) => g[A], window);
         o === "nightly.near" && a === "signTransaction" && (i[0].encode = () => i[0]);
         const c = typeof l[a] == "function" ? await l[a](...i || []) : l[a];
         n(c);
@@ -1101,24 +1196,24 @@ class W {
     }
     if (t.data.method === "open") {
       this.assertPermissions(e, "allowsOpen", t);
-      const o = typeof window < "u" ? window?.Telegram?.WebApp : null;
-      if (o && t.data.params.url.startsWith("https://t.me")) {
-        o.openTelegramLink(t.data.params.url);
+      const o = w(t.data.params.url);
+      if (o && o.protocol === "https:" && D()) {
+        o.hostname === "t.me" ? K(o) : T(o), n(null);
         return;
       }
-      const a = window.open(t.data.params.url, "_blank", t.data.params.features), i = a ? g() : null, l = (c) => {
-        const w = u(t.data.params.url);
-        w && w.origin === c.origin && e.postMessage(c.data);
+      const a = window.open(t.data.params.url, "_blank", t.data.params.features), i = a ? f() : null, l = (c) => {
+        const g = w(t.data.params.url);
+        g && g.origin === c.origin && e.postMessage(c.data);
       };
       if (n(i), window.addEventListener("message", l), a && i) {
         this.activePanels[i] = a;
         const c = setInterval(() => {
           if (!a?.closed) return;
           window.removeEventListener("message", l);
-          const w = { method: "proxy-window:closed", windowId: i };
+          const g = { method: "proxy-window:closed", windowId: i };
           delete this.activePanels[i], clearInterval(c);
           try {
-            e.postMessage(w);
+            e.postMessage(g);
           } catch {
           }
         }, 500);
@@ -1127,7 +1222,7 @@ class W {
     }
     if (t.data.method === "open.nativeApp") {
       this.assertPermissions(e, "allowsOpen", t);
-      const o = u(t.data.params.url);
+      const o = w(t.data.params.url);
       if (!o || ["https", "http", "javascript:", "file:", "data:", "blob:", "about:"].includes(o.protocol))
         throw s("Invalid URL"), new Error("[open.nativeApp] Invalid URL");
       const i = document.createElement("iframe");
@@ -1139,11 +1234,14 @@ class W {
   async checkNewVersion(e, t) {
     if (this.actualCode)
       return this.connector.logger?.log("New version of code already checked"), this.actualCode;
-    let n = u(e.manifest.executor);
-    if (n || (n = u(location.origin + e.manifest.executor)), !n) throw new Error("Invalid executor URL");
-    n.searchParams.set("nonce", L);
-    const s = await fetch(n.toString()).then((o) => o.text());
-    return this.connector.logger?.log("New version of code fetched"), this.actualCode = s, s === t ? (this.connector.logger?.log("New version of code is the same as the current version"), this.actualCode) : (await this.connector.db.setItem(`${this.manifest.id}:${this.manifest.version}`, s), this.connector.logger?.log("New version of code saved to cache"), s);
+    let n = w(e.manifest.executor);
+    if (n || (n = w(location.origin + e.manifest.executor)), !n) throw new Error("Invalid executor URL");
+    n.searchParams.set("nonce", B);
+    const s = await fetch(n.toString()).then((o) => {
+      if (!o.ok) throw new Error(`Failed to load executor: ${o.status}`);
+      return o.text();
+    });
+    return this.connector.logger?.log("New version of code fetched"), this.actualCode = s, s === t ? (this.connector.logger?.log("New version of code is the same as the current version"), this.actualCode) : (await this.connector.db.setItem(`${this.manifest.id}:${this.manifest.version}`, s).then(() => this.connector.logger?.log("New version of code saved to cache")).catch((o) => this.connector.logger?.log("Failed to cache new version of code", o)), s);
   }
   async loadCode() {
     const e = await this.connector.db.getItem(`${this.manifest.id}:${this.manifest.version}`).catch(() => null);
@@ -1155,9 +1253,9 @@ class W {
     this.connector.logger?.log("Add to queue", e, t), this.connector.logger?.log("Calling method", e, t);
     const n = await this.loadCode();
     this.connector.logger?.log("Code loaded, preparing");
-    const s = new N(this, n, this._onMessage, this.connector.cspNonce);
+    const s = new z(this, n, this._onMessage, this.connector.cspNonce);
     this.connector.logger?.log("Code loaded, iframe initialized"), await s.readyPromise, this.connector.logger?.log("Iframe ready");
-    const o = g();
+    const o = f();
     return new Promise((a, i) => {
       try {
         const l = (c) => {
@@ -1181,9 +1279,9 @@ class W {
       localStorage.removeItem(t);
   }
 }
-class p {
+class b {
   constructor(e, t) {
-    this.connector = e, this.manifest = t, this.executor = new W(e, t);
+    this.connector = e, this.manifest = t, this.executor = new R(e, t);
   }
   executor;
   async signIn(e) {
@@ -1208,14 +1306,18 @@ class p {
     return this.executor.call("wallet:getAccounts", t);
   }
   async signAndSendTransaction(e) {
-    const t = h(e.actions), n = { ...e, actions: t, network: e.network ?? this.connector.network };
+    const t = h(e.actions);
+    u(this.manifest.features, t, this.manifest.name);
+    const n = { ...e, actions: t, network: e.network ?? this.connector.network };
     return this.executor.call("wallet:signAndSendTransaction", n);
   }
   async signAndSendTransactions(e) {
     const t = e.transactions.map((s) => ({
       actions: h(s.actions),
       receiverId: s.receiverId
-    })), n = { ...e, transactions: t, network: e.network ?? this.connector.network };
+    }));
+    u(this.manifest.features, t.flatMap((s) => s.actions), this.manifest.name);
+    const n = { ...e, transactions: t, network: e.network ?? this.connector.network };
     return this.executor.call("wallet:signAndSendTransactions", n);
   }
   async signMessage(e) {
@@ -1231,10 +1333,10 @@ class p {
       })),
       network: e.network ?? this.connector.network
     };
-    return this.executor.call("wallet:signDelegateActions", t);
+    return u(this.manifest.features, t.delegateActions.flatMap((n) => n.actions), this.manifest.name), this.executor.call("wallet:signDelegateActions", t);
   }
 }
-class D {
+class U {
   constructor(e, t) {
     this.connector = e, this.wallet = t;
   }
@@ -1261,7 +1363,9 @@ class D {
     return this.wallet.getAccounts({ network: e?.network ?? this.connector.network });
   }
   async signAndSendTransaction(e) {
-    const t = h(e.actions), n = e.network ?? this.connector.network, s = await this.wallet.signAndSendTransaction({ ...e, actions: t, network: n });
+    const t = h(e.actions);
+    u(this.manifest.features, t, this.manifest.name);
+    const n = e.network ?? this.connector.network, s = await this.wallet.signAndSendTransaction({ ...e, actions: t, network: n });
     if (!s) throw new Error("No result from wallet");
     return Array.isArray(s.transactions) ? s.transactions[0] : s;
   }
@@ -1269,7 +1373,9 @@ class D {
     const t = e.network ?? this.connector.network, n = e.transactions.map((o) => ({
       actions: h(o.actions),
       receiverId: o.receiverId
-    })), s = await this.wallet.signAndSendTransactions({ ...e, transactions: n, network: t });
+    }));
+    u(this.manifest.features, n.flatMap((o) => o.actions), this.manifest.name);
+    const s = await this.wallet.signAndSendTransactions({ ...e, transactions: n, network: t });
     if (!s) throw new Error("No result from wallet");
     return Array.isArray(s.transactions) ? s.transactions : s;
   }
@@ -1277,17 +1383,18 @@ class D {
     return this.wallet.signMessage({ ...e, network: e.network ?? this.connector.network });
   }
   async signDelegateActions(e) {
-    return this.wallet.signDelegateActions({
+    const t = e.delegateActions.map((n) => ({
+      ...n,
+      actions: h(n.actions)
+    }));
+    return u(this.manifest.features, t.flatMap((n) => n.actions), this.manifest.name), this.wallet.signDelegateActions({
       ...e,
-      delegateActions: e.delegateActions.map((t) => ({
-        ...t,
-        actions: h(t.actions)
-      })),
+      delegateActions: t,
       network: e.network ?? this.connector.network
     });
   }
 }
-const K = {
+const H = {
   id: "custom-wallet",
   name: "Custom Wallet",
   icon: "https://www.mynearwallet.com/images/webclip.png",
@@ -1310,7 +1417,7 @@ const K = {
     allowsOpen: []
   }
 };
-class F extends b {
+class G extends S {
   constructor(e) {
     super(e), this.delegate = e, this.update({ wallets: e.wallets, showSettings: !1 });
   }
@@ -1356,7 +1463,7 @@ class F extends b {
         <img style="background: #333" src="${e.icon}" alt="${e.name}" />
         <div class="connect-item-info">
           <span>${e.name}</span>
-          <span class="wallet-address">${u(e.website)?.hostname}</span>
+          <span class="wallet-address">${w(e.website)?.hostname}</span>
         </div>
         ${e.debug ? t : ""}
       </div>
@@ -1392,7 +1499,7 @@ class F extends b {
                 <a href="https://github.com/azbang/hot-connector" target="_blank">read the documentation.</a> Paste your manifest and click "Add".
               </p>
 
-              <textarea style="width: 100%;" id="debug-manifest-input" rows="10">${JSON.stringify(K, null, 2)}</textarea>
+              <textarea style="width: 100%;" id="debug-manifest-input" rows="10">${JSON.stringify(H, null, 2)}</textarea>
               <button class="add-debug-manifest-button">Add</button>
             </div>
 
@@ -1419,7 +1526,7 @@ class F extends b {
     </div>`;
   }
 }
-class j {
+class J {
   dbName;
   storeName;
   version;
@@ -1543,14 +1650,14 @@ class j {
     });
   }
 }
-const O = [
+const V = [
   "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/manifest.json",
   "https://cdn.jsdelivr.net/gh/azbang/hot-connector/repository/manifest.json"
 ];
-function T(r) {
+function Y(r) {
   return (e) => Object.entries(r).length === 0 ? !0 : Object.entries(r).filter(([t, n]) => n === !0).every(([t]) => e.manifest.features?.[t] === !0);
 }
-class q {
+class X {
   storage;
   events;
   db;
@@ -1567,7 +1674,7 @@ class q {
   cspNonce;
   whenManifestLoaded;
   constructor(e) {
-    this.db = new j("hot-connector", "wallets"), this.storage = e?.storage ?? new k(), this.events = e?.events ?? new y(), this.logger = e?.logger, this.cspNonce = e?.cspNonce, this.network = e?.network ?? "mainnet", this.walletConnect = e?.walletConnect, this.autoConnect = e?.autoConnect ?? !0, this.providers = e?.providers ?? { mainnet: [], testnet: [] }, this.excludedWallets = e?.excludedWallets ?? [], this.features = e?.features ?? {}, e?.footerBranding !== void 0 ? this.footerBranding = e?.footerBranding : this.footerBranding = {
+    this.db = new J("hot-connector", "wallets"), this.storage = e?.storage ?? new C(), this.events = e?.events ?? new v(), this.logger = e?.logger, this.cspNonce = e?.cspNonce, this.network = e?.network ?? "mainnet", this.walletConnect = e?.walletConnect, this.autoConnect = e?.autoConnect ?? !0, this.providers = e?.providers ?? { mainnet: [], testnet: [] }, this.excludedWallets = e?.excludedWallets ?? [], this.features = e?.features ?? {}, e?.footerBranding !== void 0 ? this.footerBranding = e?.footerBranding : this.footerBranding = {
       icon: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%20512%20512%22%20class%3D%22size-7%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20fill%3D%22%2300ec97%22%20rx%3D%22110%22%2F%3E%3Cpath%20fill%3D%22%23000%22%20d%3D%22M373.89%20106.199a31.95%2031.95%200%200%200-27.213%2015.207l-62.631%2092.979a6.67%206.67%200%200%200-.989%205.001%206.66%206.66%200%200%200%202.837%204.235%206.67%206.67%200%200%200%208.032-.494l61.643-53.47c1.02-.924%202.599-.827%203.523.193.419.473.644%201.074.644%201.697v167.402a2.49%202.49%200%200%201-2.502%202.491%202.48%202.48%200%200%201-1.912-.891L168.976%20117.497a31.93%2031.93%200%200%200-24.356-11.298h-6.508c-17.623%200-31.917%2014.294-31.917%2031.917v235.767c0%2017.623%2014.294%2031.917%2031.917%2031.917a31.94%2031.94%200%200%200%2027.213-15.206l62.631-92.98a6.66%206.66%200%200%200-1.847-9.236%206.67%206.67%200%200%200-8.033.494l-61.643%2053.471c-1.02.923-2.599.826-3.522-.194a2.5%202.5%200%200%201-.634-1.697V173.008a2.49%202.49%200%200%201%202.502-2.492c.731%200%201.439.322%201.912.891l186.313%20223.096a31.95%2031.95%200%200%200%2024.357%2011.297h6.508c17.623%200%2031.927-14.272%2031.938-31.895V138.116c0-17.623-14.294-31.917-31.917-31.917%22%2F%3E%3C%2Fsvg%3E",
       heading: "NEAR Connector",
       link: "https://wallet.near.org",
@@ -1578,7 +1685,7 @@ class q {
       n.delete("hot-wallet"), this.manifest.wallets = this.manifest.wallets.filter((s) => !(s.permissions.walletConnect && !this.walletConnect || n.has(s.id))), await new Promise((s) => setTimeout(s, 100)), t();
     }), typeof window < "u" && (window.addEventListener("near-wallet-injected", this._handleNearWalletInjected), window.dispatchEvent(new Event("near-selector-ready")), window.addEventListener("message", async (t) => {
       t.data.type === "near-wallet-injected" && (await this.whenManifestLoaded.catch(() => {
-      }), this.wallets = this.wallets.filter((n) => n.manifest.id !== t.data.manifest.id), this.wallets.unshift(new I(this, t.data.manifest)), this.events.emit("selector:walletsChanged", {}), this.autoConnect && this.connect({ walletId: t.data.manifest.id }));
+      }), this.wallets = this.wallets.filter((n) => n.manifest.id !== t.data.manifest.id), this.wallets.unshift(new N(this, t.data.manifest)), this.events.emit("selector:walletsChanged", {}), this.autoConnect && this.connect({ walletId: t.data.manifest.id }));
     })), this.whenManifestLoaded.then(() => {
       typeof window < "u" && window.parent.postMessage({ type: "near-selector-ready" }, "*"), this.manifest.wallets.forEach((t) => this.registerWallet(t)), this.storage.get("debug-wallets").then((t) => {
         JSON.parse(t ?? "[]").forEach((s) => this.registerDebugWallet(s));
@@ -1589,10 +1696,10 @@ class q {
     return this.wallets.filter((t) => Object.entries(this.features).every(([n, s]) => !(s && !t.manifest.features?.[n]))).filter((t) => !(this.network === "testnet" && !t.manifest.features?.testnet));
   }
   _handleNearWalletInjected = (e) => {
-    this.wallets = this.wallets.filter((t) => t.manifest.id !== e.detail.manifest.id), this.wallets.unshift(new D(this, e.detail)), this.events.emit("selector:walletsChanged", {});
+    this.wallets = this.wallets.filter((t) => t.manifest.id !== e.detail.manifest.id), this.wallets.unshift(new U(this, e.detail)), this.events.emit("selector:walletsChanged", {});
   };
   async _loadManifest(e) {
-    const t = e ? [e] : O;
+    const t = e ? [e] : V;
     for (const n of t) {
       const s = await fetch(n).catch(() => null);
       if (!(!s || !s.ok))
@@ -1606,7 +1713,7 @@ class q {
   }
   async registerWallet(e) {
     if (e.type !== "sandbox") throw new Error("Only sandbox wallets are supported");
-    this.wallets.find((t) => t.manifest.id === e.id) || (this.wallets.push(new p(this, e)), this.events.emit("selector:walletsChanged", {}));
+    this.wallets.find((t) => t.manifest.id === e.id) || (this.wallets.push(new b(this, e)), this.events.emit("selector:walletsChanged", {}));
   }
   async registerDebugWallet(e) {
     const t = typeof e == "string" ? JSON.parse(e) : e;
@@ -1620,7 +1727,7 @@ class q {
     if (!t.features) throw new Error("Manifest must have features");
     if (!t.permissions) throw new Error("Manifest must have permissions");
     if (this.wallets.find((s) => s.manifest.id === t.id)) throw new Error("Wallet already registered");
-    t.debug = !0, this.wallets.unshift(new p(this, t)), this.events.emit("selector:walletsChanged", {});
+    t.debug = !0, this.wallets.unshift(new b(this, t)), this.events.emit("selector:walletsChanged", {});
     const n = this.wallets.filter((s) => s.manifest.debug).map((s) => s.manifest);
     return this.storage.set("debug-wallets", JSON.stringify(n)), t;
   }
@@ -1632,9 +1739,9 @@ class q {
   async selectWallet({ features: e = {} } = {}) {
     return await this.whenManifestLoaded.catch(() => {
     }), new Promise((t, n) => {
-      const s = new F({
+      const s = new G({
         footer: this.footerBranding,
-        wallets: this.availableWallets.filter(T(e)).map((o) => o.manifest),
+        wallets: this.availableWallets.filter(Y(e)).map((o) => o.manifest),
         onRemoveDebugManifest: async (o) => this.removeDebugWallet(o),
         onAddDebugManifest: async (o) => this.registerDebugWallet(o),
         onReject: () => (n(new Error("User rejected")), s.destroy()),
@@ -1745,10 +1852,12 @@ class q {
   }
 }
 export {
-  D as InjectedWallet,
-  k as LocalStorage,
-  q as NearConnector,
-  I as ParentFrameWallet,
-  p as SandboxWallet,
+  U as InjectedWallet,
+  C as LocalStorage,
+  X as NearConnector,
+  N as ParentFrameWallet,
+  b as SandboxWallet,
+  u as assertGasKeyActionsSupported,
+  M as isGasKeyAction,
   h as nearActionsToConnectorActions
 };
