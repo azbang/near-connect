@@ -110,6 +110,16 @@ export class RequestFailed extends Error {
 class HOT {
   static shared = new HOT();
 
+  // The wallet checks the deadline against server time, so the local clock is corrected by the server's
+  // once it is known. Never awaited: the buttons need the link on the first tap, the local clock is the fallback
+  private timeOffset = 0;
+
+  constructor() {
+    this.getTimestamp()
+      .then((ts) => (this.timeOffset = ts - Date.now()))
+      .catch(() => {});
+  }
+
   async getTimestamp() {
     const { ts } = await fetch("https://api0.herewallet.app/api/v1/web/time").then((res) => res.json());
     const seconds = BigInt(ts) / 10n ** 12n;
@@ -127,9 +137,9 @@ class HOT {
     return JSON.parse(data);
   }
 
-  async computeRequestId(request: object) {
+  computeRequestId(request: object) {
     const origin = window.selector.location;
-    const timestamp = await this.getTimestamp().catch(() => Date.now());
+    const timestamp = Date.now() + this.timeOffset;
 
     const query = baseEncode(
       JSON.stringify({
@@ -145,8 +155,7 @@ class HOT {
     return { requestId: hashsum, query };
   }
 
-  async createRequest(request: object, signal?: AbortSignal) {
-    const { query, requestId } = await this.computeRequestId(request);
+  async createRequest(requestId: string, query: string, signal?: AbortSignal) {
     const res = await fetch(`${proxyApi}/${requestId}/request`, {
       body: JSON.stringify({ data: query }),
       headers: { "content-type": "application/json" },
@@ -167,8 +176,48 @@ class HOT {
     let inTelegram: boolean | null = null;
     detectTelegram().then((value) => (inTelegram = value));
 
-    const requestId = await this.createRequest({ method, request });
+    // The link exists before the first tap, the POST runs in background: launching the app takes longer than it
+    const { requestId, query } = this.computeRequestId({ method, request });
+    const created = this.createRequest(requestId, query);
+    created.catch(() => {});
+
     const link = `hotcall-${requestId}`;
+
+    let intentFailed = false;
+    const actions: Record<string, () => void> = {
+      // Safari drops the tap gesture across postMessage round trips, so nothing is awaited before opening:
+      // until the Telegram probe answers the page is treated as a browser
+      telegram: async () => {
+        const url = `https://t.me/hot_wallet/app?startapp=${link}`;
+        if (inTelegram !== true || !(await openViaTelegram(url))) window.selector.open(url);
+      },
+      extension: () => window.selector.open(`https://download.hot-labs.org?hotconnector`),
+      mobile: async () => {
+        // Telegram does not open custom schemes, the universal link opens the app or the web fallback
+        const appLink = `https://app.hot-labs.org/link?${link}`;
+        if (inTelegram === true && (await openViaTelegram(appLink))) return;
+
+        // Mobile browsers never launch an app from a hidden iframe (openNativeApp), so open a top-level tab:
+        // Android gets an intent with the app link as the fallback when HOT is not installed, iOS the universal link
+        if (!isAndroid() || intentFailed) return void window.selector.open(appLink);
+
+        const intent = `intent://${link}#Intent;scheme=hotwallet;package=app.herewallet.hot;S.browser_fallback_url=${encodeURIComponent(appLink)};end`;
+        const panel = window.selector.open(intent);
+        if (await appLaunched(panel)) return;
+
+        // The intent was blocked or ignored: the universal link opens the app or the web fallback.
+        // Without a fresh tap it may be blocked as a popup, so the next tap goes straight to it
+        intentFailed = true;
+        panel.close();
+        window.selector.open(appLink);
+      },
+    };
+
+    // No inline onclick: the sandbox inherits the dApp CSP, and without 'unsafe-inline' inline handlers never run
+    document.querySelectorAll<HTMLElement>("[data-action]").forEach((el) => {
+      el.addEventListener("click", () => actions[el.dataset.action!]?.());
+    });
+
     const qrcode = new QRCode({
       value: `https://app.hot-labs.org/link?${link}`,
       logo: logoImage,
@@ -194,38 +243,7 @@ class HOT {
     qrcode.render();
     qr?.appendChild(qrcode.canvas);
 
-    let intentFailed = false;
-    const actions: Record<string, () => void> = {
-      telegram: async () => {
-        const url = `https://t.me/hot_wallet/app?startapp=${link}`;
-        if (inTelegram === false || !(await openViaTelegram(url))) window.selector.open(url);
-      },
-      extension: () => window.selector.open(`https://download.hot-labs.org?hotconnector`),
-      mobile: async () => {
-        // Telegram does not open custom schemes, the universal link opens the app or the web fallback
-        const appLink = `https://app.hot-labs.org/link?${link}`;
-        if (inTelegram !== false && (await openViaTelegram(appLink))) return;
-
-        // Mobile browsers never launch an app from a hidden iframe (openNativeApp), so open a top-level tab:
-        // Android gets an intent with the app link as the fallback when HOT is not installed, iOS the universal link
-        if (!isAndroid() || intentFailed) return void window.selector.open(appLink);
-
-        const intent = `intent://${link}#Intent;scheme=hotwallet;package=app.herewallet.hot;S.browser_fallback_url=${encodeURIComponent(appLink)};end`;
-        const panel = window.selector.open(intent);
-        if (await appLaunched(panel)) return;
-
-        // The intent was blocked or ignored: the universal link opens the app or the web fallback.
-        // Without a fresh tap it may be blocked as a popup, so the next tap goes straight to it
-        intentFailed = true;
-        panel.close();
-        window.selector.open(appLink);
-      },
-    };
-
-    // No inline onclick: the sandbox inherits the dApp CSP, and without 'unsafe-inline' inline handlers never run
-    document.querySelectorAll<HTMLElement>("[data-action]").forEach((el) => {
-      el.addEventListener("click", () => actions[el.dataset.action!]?.());
-    });
+    await created;
 
     const poolResponse = async () => {
       await wait(3000);
