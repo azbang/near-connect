@@ -134,7 +134,8 @@ class SandboxExecutor {
         if (!this.connector.walletConnect) throw new Error("WalletConnect is not configured");
         const client = await this.connector.walletConnect;
         const result = await client.connect(event.data.params);
-        result.approval();
+        // Rejection is handled by the wallet UI; do not leave an unhandled promise.
+        result.approval().catch(() => {});
         success({ uri: result.uri });
       } catch (e) {
         failed(e);
@@ -168,9 +169,13 @@ class SandboxExecutor {
       try {
         if (!this.connector.walletConnect) throw new Error("WalletConnect is not configured");
         const client = await this.connector.walletConnect;
-        const key = client.session.keys[client.session.keys.length - 1];
-        const session = key ? client.session.get(key) : null;
-        success(session ? { topic: session.topic, namespaces: session.namespaces } : null);
+        const { topic, pairingTopic } = event.data.params ?? {};
+        // Wallet-specific executors must not reuse whichever wallet connected last.
+        const key = topic ?? client.session.keys[client.session.keys.length - 1];
+        const session = pairingTopic
+          ? client.session.keys.map(key => client.session.get(key)).find(session => session.pairingTopic === pairingTopic)
+          : key && client.session.keys.includes(key) ? client.session.get(key) : null;
+        success(session ? { topic: session.topic, namespaces: session.namespaces, pairingTopic: session.pairingTopic } : null);
       } catch (e) {
         failed(e);
       }

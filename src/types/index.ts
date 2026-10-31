@@ -237,7 +237,7 @@ export interface AbstractWalletConnect {
 
   session: {
     keys: string[];
-    get: (key: string) => { topic: string; namespaces: any };
+    get: (key: string) => { topic: string; namespaces: any; pairingTopic?: string };
   };
 
   core: {
