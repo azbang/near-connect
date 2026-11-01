@@ -2,6 +2,8 @@ import { EventEmitter } from "./helpers/events";
 import { NearWalletsPopup } from "./popups/NearWalletsPopup";
 import { LocalStorage, DataStorage } from "./helpers/storage";
 import IndexedDB from "./helpers/indexdb";
+import { isOnchainSource, loadOnchainJson } from "./helpers/onchain";
+import { isSignedManifestEnvelope, verifySignedManifest } from "./helpers/manifestSignature";
 
 import type {
   EventMap,
@@ -29,7 +31,19 @@ export interface NearConnectorOptions {
   autoConnect?: boolean;
   network?: Network;
 
-  manifest?: string | { wallets: WalletManifest[]; version: string };
+  /**
+   * Manifest object, URL, or `onchain:<contractId>:<method>` (e.g. `onchain:registry.near:get_signed_manifest`),
+   * or a list of them tried in order,
+   * read through `providers` so no extra CSP `connect-src` entries are needed.
+   */
+  manifest?: string | string[] | { wallets: WalletManifest[]; version: string };
+
+  /**
+   * Pinned `ed25519:<base58>` keys of the registry's MPC signer. When set, a manifest loaded from any source
+   * (URL or onchain) must be a signed envelope (`get_signed_manifest`) that verifies against one of these keys;
+   * unsigned or older (by sequence) manifests are rejected and the next source is tried.
+   */
+  manifestPublicKeys?: string[];
   walletConnect?: Promise<AbstractWalletConnect> | AbstractWalletConnect;
 
   events?: EventEmitter<EventMap>;
@@ -87,6 +101,7 @@ export class NearConnector {
   excludedWallets: string[] = [];
   autoConnect?: boolean;
   cspNonce?: string;
+  manifestPublicKeys: string[] = [];
 
   readonly whenManifestLoaded: Promise<void>;
 
@@ -96,6 +111,7 @@ export class NearConnector {
     this.events = options?.events ?? new EventEmitter<EventMap>();
     this.logger = options?.logger;
     this.cspNonce = options?.cspNonce;
+    this.manifestPublicKeys = options?.manifestPublicKeys ?? [];
 
     this.network = options?.network ?? "mainnet";
     this.walletConnect = options?.walletConnect;
@@ -119,7 +135,7 @@ export class NearConnector {
     }
 
     this.whenManifestLoaded = new Promise(async (resolve) => {
-      if (options?.manifest == null || typeof options.manifest === "string") {
+      if (options?.manifest == null || typeof options.manifest === "string" || Array.isArray(options.manifest)) {
         this.manifest = await this._loadManifest(options?.manifest).catch(() => ({ wallets: [], version: "1.0.0" }));
       } else {
         this.manifest = options?.manifest ?? { wallets: [], version: "1.0.0" };
@@ -190,15 +206,44 @@ export class NearConnector {
     this.events.emit("selector:walletsChanged", {});
   };
 
-  private async _loadManifest(manifestUrl?: string) {
-    const manifestEndpoints = manifestUrl ? [manifestUrl] : defaultManifests;
+  private async _loadManifest(manifestUrl?: string | string[]) {
+    const manifestEndpoints = manifestUrl ? (Array.isArray(manifestUrl) ? manifestUrl : [manifestUrl]) : defaultManifests;
     for (const endpoint of manifestEndpoints) {
-      const res = await fetch(endpoint).catch(() => null);
-      if (!res || !res.ok) continue;
-      return await res.json(); // TODO: Validate this
+      try {
+        const raw = isOnchainSource(endpoint) ? await loadOnchainJson(endpoint, this.providers) : await this._fetchJson(endpoint);
+        return await this._acceptManifest(raw);
+      } catch (e) {
+        this.logger?.log(`Failed to load manifest`, endpoint, e);
+      }
     }
 
     throw new Error("Failed to load manifest");
+  }
+
+  private async _fetchJson(url: string) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Manifest ${url} responded ${res.status}`);
+    return await res.json();
+  }
+
+  /**
+   * With `manifestPublicKeys` set, only a signed envelope that verifies against one of them is accepted,
+   * and its sequence must not be lower than the last one seen (no rollback to an older signed manifest).
+   * Without keys, an envelope is unwrapped as is and a plain manifest is used directly.
+   */
+  private async _acceptManifest(raw: unknown): Promise<NearConnector["manifest"]> {
+    if (!this.manifestPublicKeys.length) {
+      return (isSignedManifestEnvelope(raw) ? JSON.parse(raw.manifest) : raw) as NearConnector["manifest"]; // TODO: Validate this
+    }
+
+    if (!isSignedManifestEnvelope(raw)) throw new Error("Manifest is not a signed envelope, but manifestPublicKeys are set");
+    const { manifest, sequence } = await verifySignedManifest<NearConnector["manifest"]>(raw, this.manifestPublicKeys);
+
+    const sequenceKey = `manifest-sequence:${raw.signature!.public_key}`;
+    const lastSeen = Number((await this.storage.get(sequenceKey).catch(() => null)) ?? 0);
+    if (sequence < lastSeen) throw new Error(`Manifest sequence ${sequence} is older than the last seen ${lastSeen}`);
+    if (sequence > lastSeen) await this.storage.set(sequenceKey, String(sequence)).catch(() => {});
+    return manifest;
   }
 
   async switchNetwork(network: "mainnet" | "testnet", connectOptions?: NearConnector_ConnectOptions) {
