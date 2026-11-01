@@ -27,7 +27,9 @@ last-session behavior. The sandbox exposes `supportsSessionFilters`; older SDKs
 show an update-required error instead of reusing an unrelated session. The SDK
 bridge changes need to ship alongside the manifest entry. The host consumes rejected approval promises to avoid an
 unhandled rejection. The Oath UI has a five-minute pairing deadline and removes
-its modal subscription on success, cancellation and error.
+its modal subscription on success, cancellation and error. Cancellation and the
+deadline interrupt a pending session lookup or polling delay, so a stalled bridge
+cannot retain the sign-in lock. Late lookup results cannot replace a retry.
 
 ## Reproducible checks
 
@@ -40,11 +42,11 @@ cd ..
 yarn type-check
 ```
 
-Ten focused Node tests exercise real NEAR SDK serialization and cryptographic
+Thirteen focused Node tests exercise real NEAR SDK serialization and cryptographic
 signatures with disposable in-memory keys, mocked RPC/WC boundaries, transaction
 mutation, malformed results, incomplete batches, wrong signer/network, unsafe
 RPC nonces, exact large batch nonces, failure ordering, concurrency, session
-restoration, and pairing cancellation/timeout.
+restoration, pairing cancellation/timeout, stalled lookups and retry isolation.
 
 The whole `near-wallets` type-check currently fails on the unchanged generic
 `src/wallet-connect.ts:352` (number[] passed as number). Reproduced on unmodified

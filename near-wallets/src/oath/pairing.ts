@@ -17,18 +17,28 @@ export async function pairOath(bridge: PairingBridge, view: PairingView, network
   const pairingTopic = result.uri.slice(3).split("@")[0];
   let cancelled = false;
   let unsubscribe = () => {};
+  let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+  let pollTimer: ReturnType<typeof setTimeout> | undefined;
   try {
     await view.open(result.uri);
-    unsubscribe = view.onClose(() => { cancelled = true; });
-    const deadline = Date.now() + timeoutMs;
-    while (!cancelled && Date.now() < deadline) {
-      const current = await bridge.getSession({ pairingTopic });
-      if (cancelled) break;
+    let stop!: (error: Error) => void;
+    const stopped = new Promise<never>((_, reject) => { stop = reject; });
+    // A close notification can arrive synchronously while subscribing.
+    void stopped.catch(() => {});
+    deadlineTimer = setTimeout(() => stop(new Error("Oath pairing expired; please try again")), timeoutMs);
+    unsubscribe = view.onClose(() => {
+      cancelled = true;
+      stop(new Error("User cancelled Oath pairing"));
+    });
+    while (true) {
+      const current = await Promise.race([bridge.getSession({ pairingTopic }), stopped]);
+      if (cancelled) throw new Error("User cancelled Oath pairing");
       if (current?.pairingTopic === pairingTopic && sessionAccounts(current, network).length) return current;
-      await new Promise(resolve => setTimeout(resolve, intervalMs));
+      await Promise.race([new Promise<void>(resolve => { pollTimer = setTimeout(resolve, intervalMs); }), stopped]);
     }
-    throw new Error(cancelled ? "User cancelled Oath pairing" : "Oath pairing expired; please try again");
   } finally {
+    clearTimeout(deadlineTimer);
+    clearTimeout(pollTimer);
     unsubscribe();
     view.close();
   }

@@ -103,3 +103,55 @@ test('pairing never accepts another pairing topic with compatible accounts',asyn
   await assert.rejects(pairOath({connect:async()=>({uri:'wc:pairing@2?relay-protocol=irn'}),getSession:async()=>h.state.session},
     {open:async()=>{},onClose:()=>()=>{},close:()=>{}},'testnet',5,1),/expired/);
 });
+
+for (const cancel of [true, false]) {
+  test(`pairing ${cancel ? 'cancellation' : 'deadline'} settles while a session lookup is pending`, async () => {
+    let cancelPairing, releaseLookup, enteredLookup;
+    let closed = 0, unsubscribed = 0, reads = 0;
+    const entered = new Promise(resolve => { enteredLookup = resolve; });
+    const lookup = new Promise(resolve => { releaseLookup = resolve; });
+    const outcome = pairOath({
+      connect: async () => ({ uri: 'wc:pairing@2?relay-protocol=irn' }),
+      getSession: () => { reads++; enteredLookup(); return lookup; },
+    }, {
+      open: async () => {},
+      onClose: callback => { cancelPairing = callback; return () => { unsubscribed++; }; },
+      close: () => { closed++; },
+    }, 'testnet', cancel ? 1000 : 10, 1).then(() => 'unexpected success', error => error.message);
+    await entered;
+    if (cancel) cancelPairing();
+    const result = await Promise.race([outcome, new Promise(resolve => setTimeout(() => resolve('still pending'), 50))]);
+    releaseLookup(harness().state.session);
+    await outcome;
+    assert.match(result, cancel ? /cancelled/ : /expired/);
+    assert.equal(closed, 1);
+    assert.equal(unsubscribed, 1);
+    assert.equal(reads, 1);
+  });
+}
+
+test('cancelled pending lookup releases the sign-in lock and cannot replace a retry', async () => {
+  const h = harness();
+  const initialPair = h.deps.pair;
+  let cancelPairing, releaseLookup, enteredLookup;
+  const entered = new Promise(resolve => { enteredLookup = resolve; });
+  const lookup = new Promise(resolve => { releaseLookup = resolve; });
+  h.deps.pair = network => pairOath({
+    connect: async () => ({ uri: 'wc:old-pairing@2?relay-protocol=irn' }),
+    getSession: () => { enteredLookup(); return lookup; },
+  }, {
+    open: async () => {},
+    onClose: callback => { cancelPairing = callback; return () => {}; },
+    close: () => {},
+  }, network, 1000, 1);
+  const first = h.wallet.signIn({ network: 'testnet' });
+  const rejected = assert.rejects(first, /cancelled/);
+  await entered;
+  cancelPairing();
+  await rejected;
+  h.deps.pair = initialPair;
+  assert.deepEqual(await h.wallet.signIn({ network: 'testnet' }), [account]);
+  releaseLookup({ ...h.state.session, topic: 'abandoned-session', pairingTopic: 'old-pairing' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.stored.get('session:testnet'), 'oath-session');
+});
