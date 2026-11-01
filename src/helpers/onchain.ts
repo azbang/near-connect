@@ -1,14 +1,11 @@
 /**
  * Loading wallet manifests and executor bundles from NEAR contract state.
  *
- * Directive: `onchain:<contractId>:<method>`, e.g. `onchain:registry.near:get_bundle`.
- * The method is a view call made with `{ "wallet_id": <manifest id> }` (no args for the manifest).
- * It may return either:
- *  - the raw code (or raw manifest JSON) — used as is;
- *  - a bundle descriptor `{ sha256, encoding, chunks }` — chunks are fetched from the same contract
- *    with `get_chunk({ hash })`, checked against their hashes, joined and decoded.
+ * Directive: `onchain:<contractId>:<method>`, e.g. `onchain:registry.near:get_code`.
+ * Bundles: a view call `method({ wallet_id })` returning the raw bundle (gzip or plain).
+ * Manifests: a view call `method()` returning JSON (a manifest or a signed envelope).
  *
- * Reads go through `call_function`, not `view_state`: RPC nodes refuse `view_state` once
+ * Reads go through `call_function`, not `view_state`: RPC nodes may refuse `view_state` once
  * the account's state is larger than 50 KB, which any account holding bundles will be.
  * The dApp's own `providers` are tried first, so no extra CSP `connect-src` entries are needed.
  */
@@ -20,14 +17,6 @@ export interface OnchainSource {
   contractId: string;
   method: string;
   network: Network;
-}
-
-export interface OnchainBundle {
-  sha256: string;
-  encoding?: "identity" | "gzip";
-  chunks: string[];
-  version?: string;
-  size?: number;
 }
 
 const DEFAULT_RPC: Record<Network, string[]> = {
@@ -91,59 +80,23 @@ export async function sha256Hex(data: Uint8Array | string): Promise<string> {
 
 export const normalizeHash = (hash: string) => hash.trim().toLowerCase();
 
-async function decode(bytes: Uint8Array, encoding: OnchainBundle["encoding"]): Promise<string> {
-  if (!encoding || encoding === "identity") return new TextDecoder().decode(bytes);
-  if (encoding !== "gzip") throw new Error(`Unsupported bundle encoding "${encoding}"`);
+const isGzip = (bytes: Uint8Array) => bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+
+async function gunzip(bytes: Uint8Array): Promise<string> {
   if (typeof DecompressionStream === "undefined") throw new Error("gzip bundles need DecompressionStream");
   const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"));
   return await new Response(stream).text();
 }
 
-function parseBundle(bytes: Uint8Array): OnchainBundle | null {
-  // A descriptor is small JSON; anything else is raw code
-  if (bytes.length > 64 * 1024 || bytes[0] !== 0x7b /* { */) return null;
-  try {
-    const json = JSON.parse(new TextDecoder().decode(bytes));
-    if (typeof json?.sha256 === "string" && Array.isArray(json.chunks)) return json as OnchainBundle;
-  } catch {}
-  return null;
-}
-
 /**
- * Loads an executor bundle.
- * `knownSha256` is the hash of the code the caller already has (cache): when the descriptor
- * points to the same hash the chunks are not downloaded and `null` is returned.
+ * Loads an executor bundle with a single view call `method({ wallet_id })` that returns the raw bundle,
+ * gzip (detected by its magic bytes) or plain. Integrity is checked by the caller against `manifest.sha256`.
  */
-export async function loadOnchainCode(source: string, walletId: string, providers: Providers | undefined, knownSha256?: string | null) {
+export async function loadOnchainCode(source: string, walletId: string, providers: Providers | undefined) {
   const { contractId, method, network } = parseOnchainSource(source);
-  const rpcs = rpcList(providers, network);
-  const response = await viewCall(rpcs, contractId, method, { wallet_id: walletId });
-
-  const bundle = parseBundle(response);
-  if (!bundle) {
-    const code = new TextDecoder().decode(response);
-    if (code.trim() === "" || code.trim() === "null") throw new Error(`${contractId}.${method} has no bundle for ${walletId}`);
-    return code;
-  }
-
-  const expected = normalizeHash(bundle.sha256);
-  if (knownSha256 && normalizeHash(knownSha256) === expected) return null;
-
-  // Do not trust the RPC: every chunk must hash to the key it was requested by
-  const chunks = await Promise.all(
-    bundle.chunks.map(async (hash) => {
-      const data = await viewCall(rpcs, contractId, "get_chunk", { hash });
-      if ((await sha256Hex(data)) !== normalizeHash(hash)) throw new Error(`Chunk ${hash} from ${contractId} is corrupted`);
-      return data;
-    })
-  );
-
-  const joined = new Uint8Array(chunks.reduce((sum, c) => sum + c.length, 0));
-  chunks.reduce((offset, c) => (joined.set(c, offset), offset + c.length), 0);
-
-  const code = await decode(joined, bundle.encoding);
-  if ((await sha256Hex(code)) !== expected) throw new Error(`Bundle from ${contractId} does not match its sha256`);
-  return code;
+  const bytes = await viewCall(rpcList(providers, network), contractId, method, { wallet_id: walletId });
+  if (bytes.length === 0) throw new Error(`${contractId}.${method} returned no bundle for ${walletId}`);
+  return isGzip(bytes) ? await gunzip(bytes) : new TextDecoder().decode(bytes);
 }
 
 export async function loadOnchainJson<T = unknown>(source: string, providers?: Providers): Promise<T> {

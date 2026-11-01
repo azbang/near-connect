@@ -41,7 +41,8 @@ export interface NearConnectorOptions {
   /**
    * Pinned `ed25519:<base58>` keys of the registry's MPC signer. When set, a manifest loaded from any source
    * (URL or onchain) must be a signed envelope (`get_signed_manifest`) that verifies against one of these keys;
-   * unsigned or older (by sequence) manifests are rejected and the next source is tried.
+   * unsigned or older (by sequence) manifests are rejected and the next source is tried, and sandbox wallets
+   * without `sha256` are skipped (the signature protects their code only through that hash).
    */
   manifestPublicKeys?: string[];
   walletConnect?: Promise<AbstractWalletConnect> | AbstractWalletConnect;
@@ -243,6 +244,13 @@ export class NearConnector {
     const lastSeen = Number((await this.storage.get(sequenceKey).catch(() => null)) ?? 0);
     if (sequence < lastSeen) throw new Error(`Manifest sequence ${sequence} is older than the last seen ${lastSeen}`);
     if (sequence > lastSeen) await this.storage.set(sequenceKey, String(sequence)).catch(() => {});
+
+    // The signature covers the code only through `sha256`: a sandbox wallet without it could be swapped by its CDN
+    manifest.wallets = (manifest.wallets ?? []).filter((wallet) => {
+      if (wallet.type !== "sandbox" || (typeof wallet.sha256 === "string" && /^[0-9a-fA-F]{64}$/.test(wallet.sha256))) return true;
+      this.logger?.log(`Wallet ${wallet.id} skipped: signed manifests require sha256 for sandbox wallets`);
+      return false;
+    });
     return manifest;
   }
 

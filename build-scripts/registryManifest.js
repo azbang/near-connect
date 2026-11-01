@@ -8,6 +8,7 @@
  *
  *   node build-scripts/registryManifest.js proposal <registry> <manifest.json> [--out proposal.json]
  *       Sputnik DAO `add_proposal` payload calling `set_manifest` (the registry then asks MPC to sign it).
+ *       For releases with bundles use registryRelease.js, which also uploads them and pins sha256.
  *
  *   node build-scripts/registryManifest.js export   <registry> <out.json>
  *       Saves `get_signed_manifest` as a file to mirror on a CDN (clients verify it the same way).
@@ -58,15 +59,14 @@ async function view(contract, method, args = {}) {
   if (cmd === "proposal") {
     if (!arg) throw new Error("Pass the manifest JSON file");
     const manifest = JSON.stringify(JSON.parse(fs.readFileSync(arg, "utf8"))); // canonical: what gets hashed and signed
-    // Storage for the manifest (1 NEAR per 100 KB) with headroom + signature record; the surplus is refunded
-    const depositYocto = BigInt(Math.ceil((manifest.length + 1000) / 100)) * 10n ** 21n + 1n;
+    // The registry pays storage from its own balance, so no deposit; set_manifest parses the manifest and calls MPC
     const proposal = {
       proposal: {
         description: `near-connect: set manifest (${manifest.length} bytes, sha256 ${require("crypto").createHash("sha256").update(manifest).digest("hex")})`,
         kind: {
           FunctionCall: {
             receiver_id: registry,
-            actions: [{ method_name: "set_manifest", args: Buffer.from(JSON.stringify({ manifest })).toString("base64"), deposit: depositYocto.toString(), gas: "150000000000000" }],
+            actions: [{ method_name: "set_manifest", args: Buffer.from(JSON.stringify({ manifest })).toString("base64"), deposit: "0", gas: "200000000000000" }],
           },
         },
       },

@@ -1,38 +1,45 @@
 //! NEAR Connect registry.
 //!
-//! Holds the wallet manifest and the executor bundles that `@hot-labs/near-connect`
-//! loads via `"executor": "onchain:<this contract>"`.
+//! Holds the wallet manifest (signed by NEAR MPC) and the executor bundles that `@hot-labs/near-connect`
+//! loads via `"executor": "onchain:<this contract>:get_code"`.
 //!
-//! - Chunks are content-addressed: anyone can upload one (paying for its storage), the key is
-//!   `sha256(chunk)`, so an upload cannot overwrite or forge anything.
-//! - Only the owner (a Sputnik DAO) publishes: `publish` points a wallet id at a list of chunk
-//!   hashes plus the sha256 of the decoded code. Proposals stay small and human-readable.
-//! - The client reads everything through view calls (`call_function`), not `view_state`:
-//!   RPC nodes refuse `view_state` once the account's state exceeds 50 KB.
+//! - **One source of truth.** The manifest is the release: each wallet entry carries `sha256` of its code.
+//!   `set_manifest` (owner = DAO) indexes `wallet_id -> sha256`, requires every bundle the manifest serves
+//!   from this contract to be uploaded, deletes bundles the previous manifest used and the new one does
+//!   not, bumps `sequence` and asks MPC to sign. One proposal, one action, atomic.
+//! - **Bundles in one transaction.** `upload_bundle` takes `sha256(code) || bytes` as raw args, gzip or
+//!   plain. Only allow-listed uploaders (a CI bot on a function-call key) may upload. The contract cannot
+//!   un-gzip, so it does not check the claimed hash: clients do, against the signed manifest, and a bad
+//!   upload only makes that source fail.
+//! - **The registry pays for storage** from its own balance (funded once by the DAO), so the bot needs
+//!   no NEAR beyond gas. `max_pending_bytes` bounds what uploads that were never published can lock;
+//!   they can be pruned by anyone after `pending_ttl`.
+//! - **Reads are view calls** (`call_function`), not `view_state`: RPC nodes refuse `view_state` once
+//!   the account's state exceeds 50 KB.
 //!
-//! Manifest signing: `set_manifest` bumps `sequence` and asks the NEAR MPC network to sign
-//! `MANIFEST_SIGNING_PREFIX || sequence (u64 BE) || sha256(manifest)` with an ed25519 key derived for
-//! this contract. The payload is built here from on-chain state, so the DAO never signs blind bytes.
-//! Clients pin the derived public key and accept a manifest from any transport (RPC, CDN, own domain)
-//! only if the signature verifies and `sequence` does not go back.
+//! Manifest signature: MPC signs `MANIFEST_SIGNING_PREFIX || sequence (u64 BE) || sha256(manifest)` with an
+//! ed25519 key derived for this contract. The payload is built here from on-chain state, so the DAO never
+//! signs blind bytes. Clients pin the derived public key and accept a manifest from any transport only if
+//! the signature verifies and `sequence` does not go back.
 //!
-//! The contract has no upgrade method on purpose. Upgrades go through a full access key on the
-//! registry account, e.g. an MPC key derived for the DAO (chain signatures).
+//! No upgrade method on purpose: upgrades go through a full access key, e.g. an MPC key derived for the DAO.
 
-use near_sdk::store::{IterableMap, LookupMap};
-use near_sdk::serde_json::{self, json};
+use near_sdk::serde_json::{self, json, Value};
+use near_sdk::store::{IterableMap, IterableSet, LookupMap};
 use near_sdk::{env, near, require, AccountId, BorshStorageKey, CurveType, Gas, NearToken, PanicOnDefault, Promise, PromiseError, PublicKey};
+use std::collections::BTreeMap;
 
 pub type Hash = [u8; 32];
 
-/// Hard cap per chunk. A transaction is limited to ~1.5 MB anyway; keeping chunks smaller
-/// keeps every view call well inside the 4 MB return-data limit and the view gas limit.
-pub const MAX_CHUNK_SIZE: usize = 1_000_000;
+/// A transaction is capped at 1.5 MiB; the bundle must fit in one upload with room for the tx envelope.
+pub const MAX_BUNDLE_SIZE: usize = 1_500_000;
 pub const MAX_MANIFEST_SIZE: usize = 256 * 1024;
+const DEFAULT_MAX_PENDING_BYTES: u64 = 5_000_000;
+const DEFAULT_PENDING_TTL_NS: u64 = 14 * 24 * 3600 * 1_000_000_000;
 
 /// Domain separation for manifest signatures. Bump the version if the message layout changes.
 pub const MANIFEST_SIGNING_PREFIX: &[u8] = b"near-connect:manifest:v1:";
-/// The MPC contract requires at least 15 Tgas on `sign` and 1 yoctoNEAR deposit.
+/// The MPC contract requires at least 15 Tgas on `sign` and a 1 yoctoNEAR deposit (paid by the registry).
 const GAS_FOR_SIGN: Gas = Gas::from_tgas(30);
 const GAS_FOR_ON_SIGNED: Gas = Gas::from_tgas(15);
 const SIGN_DEPOSIT: NearToken = NearToken::from_yoctonear(1);
@@ -40,34 +47,10 @@ const SIGN_DEPOSIT: NearToken = NearToken::from_yoctonear(1);
 #[derive(BorshStorageKey)]
 #[near]
 enum StorageKey {
+    Uploaders,
+    Wallets,
     Bundles,
-    Chunks,
-    ChunkMeta,
-}
-
-#[near(serializers = [borsh, json])]
-#[derive(Clone, Debug, PartialEq)]
-pub struct Bundle {
-    /// Informational, mirrors the wallet version in the manifest.
-    pub version: String,
-    /// Hex sha256 of the decoded executor code (after `encoding` is undone).
-    pub sha256: String,
-    /// `identity` or `gzip`.
-    pub encoding: String,
-    /// Total size of the encoded bundle in bytes (sum of chunks).
-    pub size: u64,
-    /// Hex sha256 of each chunk, in order.
-    pub chunks: Vec<String>,
-}
-
-#[near(serializers = [borsh, json])]
-#[derive(Clone, Debug)]
-pub struct ChunkMeta {
-    pub uploader: AccountId,
-    pub deposit: NearToken,
-    pub size: u64,
-    /// How many published bundles reference this chunk. Referenced chunks cannot be deleted.
-    pub refs: u32,
+    BundleData,
 }
 
 /// Where and how the manifest is signed. `public_key` is the key the MPC contract derives for
@@ -77,7 +60,7 @@ pub struct ChunkMeta {
 pub struct MpcConfig {
     pub contract_id: AccountId,
     pub path: String,
-    /// Ed25519 (Frost) domain; 1 on mainnet `v1.signer`.
+    /// Ed25519 (Frost) domain; 1 on `v1.signer` and `v1.signer-prod.testnet`.
     pub domain_id: u32,
     pub public_key: PublicKey,
 }
@@ -100,158 +83,182 @@ pub struct SignedManifest {
     pub signature: Option<ManifestSignature>,
 }
 
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct BundleInfo {
+    pub uploader: AccountId,
+    /// Block timestamp of the upload, nanoseconds.
+    pub uploaded_at: u64,
+    pub size: u64,
+    /// Number of wallets in the current manifest that use this bundle. 0 = pending (never published or
+    /// published earlier and replaced, in which case it is already deleted).
+    pub refs: u32,
+}
+
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct Limits {
+    pub max_pending_bytes: u64,
+    pub pending_ttl_ns: u64,
+}
+
 #[near(contract_state)]
 #[derive(PanicOnDefault)]
 pub struct Registry {
     owner_id: AccountId,
+    uploaders: IterableSet<AccountId>,
+    limits: Limits,
+    pending_bytes: u64,
+
     manifest: String,
     manifest_sequence: u64,
     manifest_signature: Option<ManifestSignature>,
     mpc: Option<MpcConfig>,
-    bundles: IterableMap<String, Bundle>,
-    chunks: LookupMap<Hash, Vec<u8>>,
-    chunk_meta: LookupMap<Hash, ChunkMeta>,
+
+    /// `wallet_id -> sha256(code)` for the wallets of the current manifest that are served from here.
+    wallets: IterableMap<String, Hash>,
+    bundles: IterableMap<Hash, BundleInfo>,
+    bundle_data: LookupMap<Hash, Vec<u8>>,
 }
 
 #[near]
 impl Registry {
     #[init]
-    pub fn new(owner_id: AccountId, mpc: Option<MpcConfig>) -> Self {
+    pub fn new(owner_id: AccountId, mpc: Option<MpcConfig>, uploaders: Vec<AccountId>) -> Self {
         if let Some(mpc) = &mpc {
             assert_ed25519(&mpc.public_key);
         }
+        let mut set = IterableSet::new(StorageKey::Uploaders);
+        set.extend(uploaders);
         Self {
             owner_id,
+            uploaders: set,
+            limits: Limits { max_pending_bytes: DEFAULT_MAX_PENDING_BYTES, pending_ttl_ns: DEFAULT_PENDING_TTL_NS },
+            pending_bytes: 0,
             manifest: String::new(),
             manifest_sequence: 0,
             manifest_signature: None,
             mpc,
+            wallets: IterableMap::new(StorageKey::Wallets),
             bundles: IterableMap::new(StorageKey::Bundles),
-            chunks: LookupMap::new(StorageKey::Chunks),
-            chunk_meta: LookupMap::new(StorageKey::ChunkMeta),
+            bundle_data: LookupMap::new(StorageKey::BundleData),
         }
     }
 
-    // ---------------------------------------------------------------- uploads (permissionless)
+    // ---------------------------------------------------------------- uploads (allow-listed bot)
 
-    /// Uploads one chunk. The arguments are the raw chunk bytes (no JSON), e.g.
-    /// `near contract call-function as-transaction <registry> upload_chunk file-args chunk.bin ...`.
-    /// Attach enough deposit for storage; the surplus is refunded. Returns the chunk hash (hex).
-    /// Re-uploading an existing chunk is a no-op that refunds the whole deposit.
-    #[payable]
-    pub fn upload_chunk(&mut self) -> String {
-        let data = env::input().unwrap_or_default();
-        require!(!data.is_empty(), "Empty chunk");
-        require!(data.len() <= MAX_CHUNK_SIZE, "Chunk is too large");
+    /// Raw args: `sha256(code)` (32 bytes) followed by the bundle bytes (gzip or plain). Not payable, so a
+    /// function-call key works; storage comes from the registry balance. Re-uploading a known hash is a no-op.
+    /// Returns the hex hash.
+    pub fn upload_bundle(&mut self) -> String {
+        require!(self.uploaders.contains(&env::predecessor_account_id()), "Not an uploader");
+        let input = env::input().unwrap_or_default();
+        require!(input.len() > 32, "Expected sha256(code) followed by the bundle bytes");
+        require!(input.len() - 32 <= MAX_BUNDLE_SIZE, "Bundle is too large");
 
-        let hash = env::sha256_array(&data);
-        let deposit = env::attached_deposit();
-        let caller = env::predecessor_account_id();
-
-        if self.chunks.contains_key(&hash) {
-            refund(&caller, deposit);
+        let hash: Hash = input[..32].try_into().unwrap();
+        if self.bundles.contains_key(&hash) {
             return to_hex(&hash);
         }
 
-        let before = env::storage_usage();
-        let size = data.len() as u64;
-        self.chunks.insert(hash, data);
-        self.chunk_meta.insert(hash, ChunkMeta { uploader: caller.clone(), deposit: NearToken::from_yoctonear(0), size, refs: 0 });
-        self.chunks.flush();
-        self.chunk_meta.flush();
-
-        let cost = storage_cost(before);
-        require!(deposit >= cost, format!("Attach at least {} yoctoNEAR for storage", cost.as_yoctonear()));
-        self.chunk_meta.get_mut(&hash).unwrap().deposit = cost;
-        refund(&caller, deposit.saturating_sub(cost));
-
+        let size = (input.len() - 32) as u64;
+        require!(self.pending_bytes + size <= self.limits.max_pending_bytes, "Pending uploads limit reached: publish or prune first");
+        self.pending_bytes += size;
+        self.bundle_data.insert(hash, input[32..].to_vec());
+        self.bundles.insert(hash, BundleInfo { uploader: env::predecessor_account_id(), uploaded_at: env::block_timestamp(), size, refs: 0 });
         to_hex(&hash)
     }
 
-    /// Deletes an unreferenced chunk and returns its storage deposit to the uploader.
-    /// Callable by the uploader or the owner.
-    pub fn delete_chunk(&mut self, hash: String) {
-        let hash = parse_hash(&hash);
-        let meta = self.chunk_meta.get(&hash).cloned().unwrap_or_else(|| env::panic_str("Unknown chunk"));
+    /// Deletes a bundle no wallet uses. Anyone after `pending_ttl`, the uploader or the owner at any time.
+    pub fn prune(&mut self, sha256: String) {
+        let hash = parse_hash(&sha256);
+        let info = self.bundles.get(&hash).cloned().unwrap_or_else(|| env::panic_str("Unknown bundle"));
+        require!(info.refs == 0, "Bundle is used by the current manifest");
         let caller = env::predecessor_account_id();
-        require!(caller == meta.uploader || caller == self.owner_id, "Only the uploader or the owner");
-        require!(meta.refs == 0, "Chunk is used by a published bundle");
-
-        self.chunks.remove(&hash);
-        self.chunk_meta.remove(&hash);
-        refund(&meta.uploader, meta.deposit);
+        let expired = env::block_timestamp().saturating_sub(info.uploaded_at) >= self.limits.pending_ttl_ns;
+        require!(expired || caller == info.uploader || caller == self.owner_id, "Bundle is not expired yet");
+        self.delete_bundle(&hash, true);
     }
 
     // ---------------------------------------------------------------- owner (DAO)
 
-    /// Points `wallet_id` at a bundle made of already uploaded chunks.
-    /// Attach deposit for the bundle record storage; the surplus is refunded.
-    #[payable]
-    pub fn publish(&mut self, wallet_id: String, bundle: Bundle) {
-        self.assert_owner();
-        require!(!wallet_id.is_empty() && wallet_id.len() <= 64, "Invalid wallet id");
-        require!(bundle.encoding == "identity" || bundle.encoding == "gzip", "Encoding must be identity or gzip");
-        require!(!bundle.chunks.is_empty(), "Bundle has no chunks");
-        parse_hash(&bundle.sha256);
-
-        let mut size = 0u64;
-        for chunk in bundle.chunks.iter() {
-            let meta = self.chunk_meta.get(&parse_hash(chunk)).unwrap_or_else(|| env::panic_str(&format!("Chunk {chunk} is not uploaded")));
-            size += meta.size;
-        }
-        require!(size == bundle.size, "Bundle size does not match the chunks");
-
-        let before = env::storage_usage();
-        let normalized = Bundle { sha256: bundle.sha256.to_lowercase(), chunks: bundle.chunks.iter().map(|c| c.to_lowercase()).collect(), ..bundle };
-        self.change_refs(&normalized.chunks, true);
-        if let Some(old) = self.bundles.insert(wallet_id, normalized) {
-            self.change_refs(&old.chunks, false);
-        }
-        self.settle_owner_storage(before);
-    }
-
-    pub fn unpublish(&mut self, wallet_id: String) {
-        self.assert_owner();
-        let old = self.bundles.remove(&wallet_id).unwrap_or_else(|| env::panic_str("Unknown wallet id"));
-        self.change_refs(&old.chunks, false);
-    }
-
-    /// Stores the wallet manifest (the same JSON as `repository/manifest.json`), bumps `sequence`
-    /// and, when MPC is configured, requests its signature. Attach storage deposit + 1 yoctoNEAR
-    /// and ~100 Tgas; the signature lands in `on_manifest_signed` a few blocks later.
-    #[payable]
+    /// The release. Stores the manifest (same JSON as `repository/manifest.json`), indexes the wallets whose
+    /// `executor` points at this contract, requires their bundles (by `sha256`) to be uploaded, deletes the
+    /// bundles the previous manifest used and this one does not, bumps `sequence` and requests the MPC signature.
+    /// Attach ~200 Tgas; nothing needs to be deposited.
     pub fn set_manifest(&mut self, manifest: String) -> Option<Promise> {
         self.assert_owner();
         require!(manifest.len() <= MAX_MANIFEST_SIZE, "Manifest is too large");
-        require!(serde_json::from_str::<serde_json::Value>(&manifest).is_ok(), "Manifest must be valid JSON");
+        let parsed: Value = serde_json::from_str(&manifest).unwrap_or_else(|_| env::panic_str("Manifest must be valid JSON"));
+        let next = self.served_wallets(&parsed);
 
-        let before = env::storage_usage();
+        for (wallet_id, hash) in next.iter() {
+            require!(self.bundles.contains_key(hash), format!("Bundle {} for {wallet_id} is not uploaded", to_hex(hash)));
+        }
+
+        // Swap the index and the reference counts; bundles that drop to zero refs were released before and go away
+        let previous: Vec<Hash> = self.wallets.values().copied().collect();
+        self.wallets.clear();
+        for (wallet_id, hash) in next {
+            self.add_ref(&hash);
+            self.wallets.insert(wallet_id, hash);
+        }
+        for hash in previous {
+            let info = self.bundles.get_mut(&hash).unwrap();
+            info.refs -= 1;
+            if info.refs == 0 {
+                self.delete_bundle(&hash, false);
+            }
+        }
+
         self.manifest = manifest;
         self.manifest_sequence += 1;
         self.manifest_signature = None;
-
-        let reserve = if self.mpc.is_some() { SIGN_DEPOSIT } else { NearToken::from_yoctonear(0) };
-        self.settle_storage(before, reserve);
         self.mpc.as_ref().map(|_| self.sign_current_manifest())
     }
 
-    /// Re-requests the signature of the current manifest, e.g. after an MPC timeout.
-    /// Open to anyone: it can only sign what is already on-chain. Attach 1 yoctoNEAR.
-    #[payable]
+    pub fn set_uploaders(&mut self, uploaders: Vec<AccountId>) {
+        self.assert_owner();
+        self.uploaders.clear();
+        self.uploaders.extend(uploaders);
+    }
+
+    pub fn set_limits(&mut self, limits: Limits) {
+        self.assert_owner();
+        self.limits = limits;
+    }
+
+    /// Changing the key breaks clients that pinned the old one, plan a rotation.
+    pub fn set_mpc_config(&mut self, mpc: Option<MpcConfig>) {
+        self.assert_owner();
+        if let Some(mpc) = &mpc {
+            assert_ed25519(&mpc.public_key);
+        }
+        self.mpc = mpc;
+        self.manifest_signature = None;
+    }
+
+    pub fn set_owner(&mut self, owner_id: AccountId) {
+        self.assert_owner();
+        self.owner_id = owner_id;
+    }
+
+    // ---------------------------------------------------------------- MPC signature
+
+    /// Re-requests the signature of the current manifest, e.g. after an MPC timeout. Open to anyone:
+    /// it can only sign what is already on-chain.
     pub fn request_manifest_signature(&mut self) -> Promise {
-        require!(env::attached_deposit() >= SIGN_DEPOSIT, "Attach 1 yoctoNEAR for the MPC request");
         require!(self.manifest_sequence > 0, "No manifest");
         require!(self.manifest_signature.is_none(), "Manifest is already signed");
         self.sign_current_manifest()
     }
 
     #[private]
-    pub fn on_manifest_signed(&mut self, sequence: u64, sha256: String, #[callback_result] response: Result<serde_json::Value, PromiseError>) -> bool {
+    pub fn on_manifest_signed(&mut self, sequence: u64, sha256: String, #[callback_result] response: Result<Value, PromiseError>) -> bool {
         if sequence != self.manifest_sequence {
             env::log_str(&format!("Stale signature for sequence {sequence}, current is {}", self.manifest_sequence));
             return false;
         }
-
         let Ok(response) = response else {
             env::log_str("MPC sign failed, call request_manifest_signature to retry");
             return false;
@@ -267,32 +274,12 @@ impl Registry {
         true
     }
 
-    /// Owner only. Changing the key breaks clients that pinned the old one, plan a rotation.
-    pub fn set_mpc_config(&mut self, mpc: Option<MpcConfig>) {
-        self.assert_owner();
-        if let Some(mpc) = &mpc {
-            assert_ed25519(&mpc.public_key);
-        }
-        self.mpc = mpc;
-        self.manifest_signature = None;
-    }
-
-    pub fn set_owner(&mut self, owner_id: AccountId) {
-        self.assert_owner();
-        self.owner_id = owner_id;
-    }
-
     // ---------------------------------------------------------------- views
 
-    /// Returns the raw manifest JSON (not wrapped in a JSON string).
-    pub fn get_manifest(&self) {
-        env::value_return(self.manifest.as_bytes());
-    }
-
-    /// Returns the raw chunk bytes.
-    pub fn get_chunk(&self, hash: String) {
-        let data = self.chunks.get(&parse_hash(&hash)).unwrap_or_else(|| env::panic_str("Unknown chunk"));
-        env::value_return(data);
+    /// Raw bundle bytes of a wallet in the current manifest (gzip or plain, as uploaded).
+    pub fn get_code(&self, wallet_id: String) {
+        let hash = self.wallets.get(&wallet_id).unwrap_or_else(|| env::panic_str(&format!("No bundle for {wallet_id}")));
+        env::value_return(self.bundle_data.get(hash).unwrap());
     }
 
     /// Manifest plus signature in one envelope; the same JSON can be mirrored to a CDN as is.
@@ -300,24 +287,42 @@ impl Registry {
         SignedManifest { manifest: self.manifest.clone(), signature: self.manifest_signature.clone() }
     }
 
+    /// Raw manifest JSON (not wrapped in a JSON string).
+    pub fn get_manifest(&self) {
+        env::value_return(self.manifest.as_bytes());
+    }
+
     pub fn get_manifest_sequence(&self) -> u64 {
         self.manifest_sequence
     }
 
+    pub fn get_wallets(&self) -> BTreeMap<String, String> {
+        self.wallets.iter().map(|(id, hash)| (id.clone(), to_hex(hash))).collect()
+    }
+
+    pub fn get_bundle_info(&self, sha256: String) -> Option<BundleInfo> {
+        self.bundles.get(&parse_hash(&sha256)).cloned()
+    }
+
+    /// Uploaded bundles no wallet uses yet (waiting for a manifest, or to be pruned).
+    pub fn get_pending(&self) -> Vec<(String, BundleInfo)> {
+        self.bundles.iter().filter(|(_, info)| info.refs == 0).map(|(hash, info)| (to_hex(hash), info.clone())).collect()
+    }
+
+    pub fn get_pending_bytes(&self) -> u64 {
+        self.pending_bytes
+    }
+
+    pub fn get_uploaders(&self) -> Vec<AccountId> {
+        self.uploaders.iter().cloned().collect()
+    }
+
+    pub fn get_limits(&self) -> Limits {
+        self.limits.clone()
+    }
+
     pub fn get_mpc_config(&self) -> Option<MpcConfig> {
         self.mpc.clone()
-    }
-
-    pub fn get_bundle(&self, wallet_id: String) -> Option<Bundle> {
-        self.bundles.get(&wallet_id).cloned()
-    }
-
-    pub fn get_bundles(&self) -> Vec<(String, Bundle)> {
-        self.bundles.iter().map(|(id, b)| (id.clone(), b.clone())).collect()
-    }
-
-    pub fn get_chunk_meta(&self, hash: String) -> Option<ChunkMeta> {
-        self.chunk_meta.get(&parse_hash(&hash)).cloned()
     }
 
     pub fn get_owner(&self) -> AccountId {
@@ -330,26 +335,43 @@ impl Registry {
         require!(env::predecessor_account_id() == self.owner_id, "Only the owner");
     }
 
-    fn change_refs(&mut self, chunks: &[String], increment: bool) {
-        for chunk in chunks {
-            let meta = self.chunk_meta.get_mut(&parse_hash(chunk)).unwrap_or_else(|| env::panic_str("Unknown chunk"));
-            meta.refs = if increment { meta.refs + 1 } else { meta.refs.saturating_sub(1) };
+    /// Wallets whose `executor` (string or list) points at `onchain:<this contract>:`, with their `sha256`.
+    fn served_wallets(&self, manifest: &Value) -> BTreeMap<String, Hash> {
+        let prefix = format!("onchain:{}:", env::current_account_id());
+        let wallets = manifest["wallets"].as_array().unwrap_or_else(|| env::panic_str("Manifest must have a wallets array"));
+        let mut served = BTreeMap::new();
+        for wallet in wallets {
+            let executor = &wallet["executor"];
+            let sources: Vec<&str> = match executor {
+                Value::String(s) => vec![s.as_str()],
+                Value::Array(list) => list.iter().filter_map(|s| s.as_str()).collect(),
+                _ => vec![],
+            };
+            if !sources.iter().any(|s| s.starts_with(&prefix)) {
+                continue;
+            }
+            let id = wallet["id"].as_str().unwrap_or_else(|| env::panic_str("Wallet without id"));
+            let sha = wallet["sha256"].as_str().unwrap_or_else(|| env::panic_str(&format!("Wallet {id} is served on-chain but has no sha256")));
+            require!(served.insert(id.to_string(), parse_hash(sha)).is_none(), format!("Duplicate wallet id {id}"));
         }
+        served
     }
 
-    fn settle_owner_storage(&mut self, before: u64) {
-        self.settle_storage(before, NearToken::from_yoctonear(0));
+    fn add_ref(&mut self, hash: &Hash) {
+        let info = self.bundles.get_mut(hash).unwrap();
+        if info.refs == 0 {
+            self.pending_bytes -= info.size;
+        }
+        info.refs += 1;
     }
 
-    /// Charges the caller for state growth since `before` from the attached deposit, keeps `reserve`
-    /// for an outgoing call, refunds the rest. Freed state is not refunded: it stays on the registry.
-    fn settle_storage(&mut self, before: u64, reserve: NearToken) {
-        self.bundles.flush();
-        self.chunk_meta.flush();
-        let deposit = env::attached_deposit();
-        let cost = storage_cost(before).saturating_add(reserve);
-        require!(deposit >= cost, format!("Attach at least {} yoctoNEAR (storage + MPC deposit)", cost.as_yoctonear()));
-        refund(&env::predecessor_account_id(), deposit.saturating_sub(cost));
+    /// `pending`: the bundle was never published, so it counts towards `pending_bytes`.
+    fn delete_bundle(&mut self, hash: &Hash, pending: bool) {
+        let info = self.bundles.remove(hash).unwrap();
+        self.bundle_data.remove(hash);
+        if pending {
+            self.pending_bytes -= info.size;
+        }
     }
 
     fn sign_current_manifest(&self) -> Promise {
@@ -370,7 +392,7 @@ pub fn manifest_message(sequence: u64, sha256: &Hash) -> Vec<u8> {
 }
 
 /// MPC returns `{ "scheme": "Ed25519", "signature": [64 bytes] }`.
-fn parse_ed25519_response(response: &serde_json::Value) -> [u8; 64] {
+fn parse_ed25519_response(response: &Value) -> [u8; 64] {
     require!(response["scheme"] == "Ed25519", "Expected an Ed25519 signature from MPC");
     let bytes: Vec<u8> = serde_json::from_value(response["signature"].clone()).unwrap_or_else(|_| env::panic_str("Malformed MPC signature"));
     bytes.try_into().unwrap_or_else(|_| env::panic_str("Ed25519 signature must be 64 bytes"))
@@ -378,17 +400,6 @@ fn parse_ed25519_response(response: &serde_json::Value) -> [u8; 64] {
 
 fn assert_ed25519(key: &PublicKey) {
     require!(key.curve_type() == CurveType::ED25519, "MPC public key must be ed25519");
-}
-
-fn storage_cost(before: u64) -> NearToken {
-    let grown = env::storage_usage().saturating_sub(before);
-    env::storage_byte_cost().saturating_mul(grown as u128)
-}
-
-fn refund(to: &AccountId, amount: NearToken) {
-    if !amount.is_zero() {
-        Promise::new(to.clone()).transfer(amount).detach();
-    }
 }
 
 fn to_hex(bytes: &[u8]) -> String {
@@ -415,97 +426,189 @@ fn parse_hash(hex: &str) -> Hash {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ed25519_dalek::{Signer, SigningKey};
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::testing_env;
 
+    const REGISTRY: &str = "registry.near";
+
     fn dao() -> AccountId {
         "devhub.sputnik-dao.near".parse().unwrap()
+    }
+    fn bot() -> AccountId {
+        "bot.near".parse().unwrap()
     }
     fn alice() -> AccountId {
         "alice.near".parse().unwrap()
     }
 
-    fn ctx(caller: AccountId, deposit: NearToken, input: Vec<u8>) {
-        let mut context = VMContextBuilder::new().predecessor_account_id(caller).attached_deposit(deposit).build();
+    fn ctx_at(caller: AccountId, input: Vec<u8>, timestamp: u64) {
+        let mut context = VMContextBuilder::new()
+            .current_account_id(REGISTRY.parse().unwrap())
+            .predecessor_account_id(caller)
+            .account_balance(NearToken::from_near(100))
+            .block_timestamp(timestamp)
+            .build();
         context.input = input.into();
         testing_env!(context);
     }
 
-    fn upload(r: &mut Registry, data: &[u8]) -> String {
-        ctx(alice(), NearToken::from_near(10), data.to_vec());
-        r.upload_chunk()
+    fn ctx(caller: AccountId) {
+        ctx_at(caller, vec![], 0);
     }
 
-    fn bundle(chunks: Vec<String>, size: u64) -> Bundle {
-        Bundle { version: "1.0.0".into(), sha256: "a".repeat(64), encoding: "gzip".into(), size, chunks }
+    fn sha(code: &[u8]) -> Hash {
+        env::sha256_array(code)
     }
 
-    #[test]
-    fn upload_is_content_addressed() {
-        ctx(dao(), NearToken::from_yoctonear(0), vec![]);
-        let mut r = Registry::new(dao(), None);
-        let h = upload(&mut r, b"hello");
-        assert_eq!(h, to_hex(&env::sha256_array(b"hello")));
-        assert_eq!(upload(&mut r, b"hello"), h);
-        assert_eq!(r.get_chunk_meta(h).unwrap().size, 5);
+    /// Uploads `code` (as plain bytes) and returns its hex hash.
+    fn upload(r: &mut Registry, code: &[u8]) -> String {
+        ctx_at(bot(), [sha(code).as_slice(), code].concat(), 0);
+        r.upload_bundle()
     }
 
-    #[test]
-    fn publish_counts_refs_and_blocks_delete() {
-        ctx(dao(), NearToken::from_yoctonear(0), vec![]);
-        let mut r = Registry::new(dao(), None);
-        let a = upload(&mut r, b"aaa");
-        let b = upload(&mut r, b"bb");
+    fn manifest(wallets: &[(&str, &[u8])]) -> String {
+        let wallets: Vec<Value> = wallets
+            .iter()
+            .map(|(id, code)| json!({ "id": id, "executor": [format!("onchain:{REGISTRY}:get_code"), "https://cdn/x.js"], "sha256": to_hex(&sha(code)) }))
+            .collect();
+        json!({ "version": "1", "wallets": wallets }).to_string()
+    }
 
-        ctx(dao(), NearToken::from_near(1), vec![]);
-        r.publish("hot-wallet".into(), bundle(vec![a.clone(), b.clone()], 5));
-        assert_eq!(r.get_chunk_meta(a.clone()).unwrap().refs, 1);
-        assert_eq!(r.get_bundle("hot-wallet".into()).unwrap().chunks.len(), 2);
+    fn registry(mpc: Option<MpcConfig>) -> Registry {
+        ctx(dao());
+        Registry::new(dao(), mpc, vec![bot()])
+    }
 
-        // Republishing with only `b` drops the ref on `a`
-        ctx(dao(), NearToken::from_near(1), vec![]);
-        r.publish("hot-wallet".into(), bundle(vec![b.clone()], 2));
-        assert_eq!(r.get_chunk_meta(a.clone()).unwrap().refs, 0);
-        assert_eq!(r.get_chunk_meta(b.clone()).unwrap().refs, 1);
-
-        ctx(alice(), NearToken::from_yoctonear(0), vec![]);
-        r.delete_chunk(a.clone());
-        assert!(r.get_chunk_meta(a).is_none());
+    fn set_manifest(r: &mut Registry, m: String) {
+        ctx(dao());
+        r.set_manifest(m);
     }
 
     #[test]
-    #[should_panic(expected = "Chunk is used by a published bundle")]
-    fn referenced_chunk_cannot_be_deleted() {
-        ctx(dao(), NearToken::from_yoctonear(0), vec![]);
-        let mut r = Registry::new(dao(), None);
-        let a = upload(&mut r, b"aaa");
-        ctx(dao(), NearToken::from_near(1), vec![]);
-        r.publish("w".into(), bundle(vec![a.clone()], 3));
-        ctx(alice(), NearToken::from_yoctonear(0), vec![]);
-        r.delete_chunk(a);
+    fn manifest_is_the_release() {
+        let mut r = registry(None);
+        upload(&mut r, b"hot v1");
+        upload(&mut r, b"meteor v1");
+        assert_eq!(r.get_pending_bytes(), 15);
+
+        set_manifest(&mut r, manifest(&[("hot", b"hot v1"), ("meteor", b"meteor v1")]));
+        assert_eq!(r.get_wallets().len(), 2);
+        assert_eq!(r.get_pending_bytes(), 0);
+        assert_eq!(r.get_manifest_sequence(), 1);
+    }
+
+    #[test]
+    fn replaced_bundles_are_deleted_fresh_uploads_survive() {
+        let mut r = registry(None);
+        let v1 = upload(&mut r, b"hot v1");
+        set_manifest(&mut r, manifest(&[("hot", b"hot v1")]));
+
+        let v2 = upload(&mut r, b"hot v2");
+        let v3 = upload(&mut r, b"hot v3"); // uploaded for a later proposal
+        set_manifest(&mut r, manifest(&[("hot", b"hot v2")]));
+
+        assert!(r.get_bundle_info(v1).is_none(), "v1 was replaced and must be deleted");
+        assert_eq!(r.get_bundle_info(v2).unwrap().refs, 1);
+        assert_eq!(r.get_bundle_info(v3.clone()).unwrap().refs, 0, "pending upload must survive");
+        assert_eq!(r.get_pending_bytes(), 6);
+        assert_eq!(r.get_pending().len(), 1);
+
+        set_manifest(&mut r, manifest(&[("hot", b"hot v3")]));
+        assert_eq!(r.get_pending_bytes(), 0);
+    }
+
+    #[test]
+    fn shared_bundle_survives_while_any_wallet_uses_it() {
+        let mut r = registry(None);
+        let shared = upload(&mut r, b"shared");
+        upload(&mut r, b"other");
+        set_manifest(&mut r, manifest(&[("a", b"shared"), ("b", b"shared")]));
+        assert_eq!(r.get_bundle_info(shared.clone()).unwrap().refs, 2);
+
+        set_manifest(&mut r, manifest(&[("a", b"shared"), ("b", b"other")]));
+        assert_eq!(r.get_bundle_info(shared).unwrap().refs, 1);
+    }
+
+    #[test]
+    fn wallets_not_served_onchain_are_not_indexed() {
+        let mut r = registry(None);
+        let m = json!({ "wallets": [{ "id": "cdn-only", "executor": "https://cdn/x.js" }] }).to_string();
+        set_manifest(&mut r, m);
+        assert!(r.get_wallets().is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "is not uploaded")]
+    fn manifest_requires_uploaded_bundles() {
+        let mut r = registry(None);
+        set_manifest(&mut r, manifest(&[("hot", b"missing")]));
+    }
+
+    #[test]
+    #[should_panic(expected = "is served on-chain but has no sha256")]
+    fn onchain_wallet_needs_sha256() {
+        let mut r = registry(None);
+        let m = json!({ "wallets": [{ "id": "hot", "executor": format!("onchain:{REGISTRY}:get_code") }] }).to_string();
+        set_manifest(&mut r, m);
+    }
+
+    #[test]
+    #[should_panic(expected = "Not an uploader")]
+    fn only_uploaders_upload() {
+        let mut r = registry(None);
+        ctx_at(alice(), [sha(b"x").as_slice(), b"x"].concat(), 0);
+        r.upload_bundle();
+    }
+
+    #[test]
+    #[should_panic(expected = "Pending uploads limit reached")]
+    fn pending_limit_bounds_uploads() {
+        let mut r = registry(None);
+        ctx(dao());
+        r.set_limits(Limits { max_pending_bytes: 10, pending_ttl_ns: 1 });
+        upload(&mut r, b"123456");
+        upload(&mut r, b"abcdef");
+    }
+
+    #[test]
+    fn prune_after_ttl_by_anyone() {
+        let mut r = registry(None);
+        let h = upload(&mut r, b"orphan");
+        ctx_at(alice(), vec![], DEFAULT_PENDING_TTL_NS);
+        r.prune(h.clone());
+        assert!(r.get_bundle_info(h).is_none());
+        assert_eq!(r.get_pending_bytes(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Bundle is not expired yet")]
+    fn prune_before_ttl_is_restricted() {
+        let mut r = registry(None);
+        let h = upload(&mut r, b"orphan");
+        ctx_at(alice(), vec![], DEFAULT_PENDING_TTL_NS - 1);
+        r.prune(h);
+    }
+
+    #[test]
+    #[should_panic(expected = "Bundle is used by the current manifest")]
+    fn published_bundle_cannot_be_pruned() {
+        let mut r = registry(None);
+        let h = upload(&mut r, b"hot v1");
+        set_manifest(&mut r, manifest(&[("hot", b"hot v1")]));
+        ctx(dao());
+        r.prune(h);
     }
 
     #[test]
     #[should_panic(expected = "Only the owner")]
-    fn only_owner_publishes() {
-        ctx(dao(), NearToken::from_yoctonear(0), vec![]);
-        let mut r = Registry::new(dao(), None);
-        let a = upload(&mut r, b"aaa");
-        ctx(alice(), NearToken::from_near(1), vec![]);
-        r.publish("w".into(), bundle(vec![a], 3));
+    fn only_owner_sets_manifest() {
+        let mut r = registry(None);
+        ctx(bot());
+        r.set_manifest(manifest(&[]));
     }
 
-    #[test]
-    #[should_panic(expected = "Bundle size does not match the chunks")]
-    fn size_must_match() {
-        ctx(dao(), NearToken::from_yoctonear(0), vec![]);
-        let mut r = Registry::new(dao(), None);
-        let a = upload(&mut r, b"aaa");
-        ctx(dao(), NearToken::from_near(1), vec![]);
-        r.publish("w".into(), bundle(vec![a], 4));
-    }
-
-    use ed25519_dalek::{Signer, SigningKey};
+    // ---------------------------------------------------------------- MPC
 
     fn mpc_key() -> SigningKey {
         SigningKey::from_bytes(&[7u8; 32])
@@ -517,27 +620,22 @@ mod tests {
         MpcConfig { contract_id: "v1.signer".parse().unwrap(), path: "near-connect/manifest".into(), domain_id: 1, public_key: PublicKey::try_from(key).unwrap() }
     }
 
-    fn registry() -> AccountId {
-        "registry.near".parse().unwrap()
-    }
-
     /// Simulates the MPC callback with `response` as the `sign` result (None = failed promise).
-    fn callback(r: &mut Registry, sequence: u64, sha256: String, response: Option<serde_json::Value>) -> bool {
-        let context = VMContextBuilder::new().current_account_id(registry()).predecessor_account_id(registry()).build();
-        testing_env!(context);
-        r.on_manifest_signed(sequence, sha256, match response {
-            Some(v) => Ok(v),
-            None => Err(PromiseError::Failed),
-        })
+    fn callback(r: &mut Registry, sequence: u64, sha256: String, response: Option<Value>) -> bool {
+        ctx(REGISTRY.parse().unwrap());
+        r.on_manifest_signed(sequence, sha256, response.ok_or(PromiseError::Failed))
     }
 
     fn signed_registry() -> (Registry, String) {
-        ctx(dao(), NearToken::from_yoctonear(0), vec![]);
-        let mut r = Registry::new(dao(), Some(mpc_config()));
-        ctx(dao(), NearToken::from_near(1), vec![]);
-        assert!(r.set_manifest("{\"wallets\":[]}".into()).is_some());
-        let sha = to_hex(&env::sha256_array(b"{\"wallets\":[]}"));
-        (r, sha)
+        let mut r = registry(Some(mpc_config()));
+        let m = manifest(&[]);
+        ctx(dao());
+        assert!(r.set_manifest(m.clone()).is_some());
+        (r, to_hex(&sha(m.as_bytes())))
+    }
+
+    fn sign(seq: u64, sha: &str, key: &SigningKey) -> Value {
+        json!({ "scheme": "Ed25519", "signature": key.sign(&manifest_message(seq, &parse_hash(sha))).to_bytes().to_vec() })
     }
 
     #[test]
@@ -551,8 +649,7 @@ mod tests {
         assert_eq!(method_name, b"sign");
         assert_eq!(*attached_deposit, SIGN_DEPOSIT);
         assert!(prepaid_gas.as_tgas() >= 15);
-
-        let args: serde_json::Value = serde_json::from_slice(args).unwrap();
+        let args: Value = serde_json::from_slice(args).unwrap();
         let expected = to_hex(&manifest_message(1, &parse_hash(&sha)));
         assert_eq!(args, json!({ "request": { "path": "near-connect/manifest", "payload_v2": { "Eddsa": expected }, "domain_id": 1 } }));
     }
@@ -568,56 +665,34 @@ mod tests {
     #[test]
     fn stores_a_valid_mpc_signature() {
         let (mut r, sha) = signed_registry();
-        assert_eq!(r.get_manifest_sequence(), 1);
-        let sig = mpc_key().sign(&manifest_message(1, &parse_hash(&sha)));
-        let response = json!({ "scheme": "Ed25519", "signature": sig.to_bytes().to_vec() });
-        assert!(callback(&mut r, 1, sha.clone(), Some(response)));
+        assert!(callback(&mut r, 1, sha.clone(), Some(sign(1, &sha, &mpc_key()))));
         let signed = r.get_signed_manifest().signature.unwrap();
-        assert_eq!(signed.sequence, 1);
-        assert_eq!(signed.sha256, sha);
-        assert_eq!(signed.signature, to_hex(&sig.to_bytes()));
+        assert_eq!((signed.sequence, signed.sha256), (1, sha));
     }
 
     #[test]
     #[should_panic(expected = "MPC signature does not verify")]
     fn rejects_a_signature_from_another_key() {
         let (mut r, sha) = signed_registry();
-        let sig = SigningKey::from_bytes(&[9u8; 32]).sign(&manifest_message(1, &parse_hash(&sha)));
-        callback(&mut r, 1, sha, Some(json!({ "scheme": "Ed25519", "signature": sig.to_bytes().to_vec() })));
+        callback(&mut r, 1, sha.clone(), Some(sign(1, &sha, &SigningKey::from_bytes(&[9u8; 32]))));
     }
 
     #[test]
     fn ignores_stale_and_failed_signatures() {
         let (mut r, sha) = signed_registry();
-        let sig = mpc_key().sign(&manifest_message(1, &parse_hash(&sha)));
         assert!(!callback(&mut r, 1, sha.clone(), None));
         assert!(r.get_signed_manifest().signature.is_none());
 
-        ctx(dao(), NearToken::from_near(1), vec![]);
-        r.set_manifest("{\"wallets\":[1]}".into());
-        assert!(!callback(&mut r, 1, sha, Some(json!({ "scheme": "Ed25519", "signature": sig.to_bytes().to_vec() }))));
+        set_manifest(&mut r, json!({ "version": "2", "wallets": [] }).to_string());
+        assert!(!callback(&mut r, 1, sha.clone(), Some(sign(1, &sha, &mpc_key()))));
         assert!(r.get_signed_manifest().signature.is_none());
     }
 
-    #[test]
-    fn manifest_must_be_json() {
-        ctx(dao(), NearToken::from_near(1), vec![]);
-        let mut r = Registry::new(dao(), None);
-        r.set_manifest("{\"wallets\":[]}".into());
-    }
-}
-
-#[cfg(test)]
-mod vector {
-    use super::*;
-    use ed25519_dalek::{Signer, SigningKey};
-
-    /// Prints a cross-language test vector: `cargo test vector -- --nocapture`
+    /// Prints a cross-language test vector: `cargo test print_vector -- --nocapture`
     #[test]
     fn print_vector() {
-        let manifest = br#"{"wallets":[]}"#;
-        let msg = manifest_message(42, &env::sha256_array(manifest));
-        let key = SigningKey::from_bytes(&[7u8; 32]);
+        let msg = manifest_message(42, &sha(br#"{"wallets":[]}"#));
+        let key = mpc_key();
         println!("VECTOR {} {} {}", to_hex(&msg), to_hex(key.verifying_key().as_bytes()), to_hex(&key.sign(&msg).to_bytes()));
     }
 }

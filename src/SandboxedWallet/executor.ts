@@ -307,12 +307,8 @@ class SandboxExecutor {
     if (actual !== expected) throw new Error(`Executor from ${source} does not match manifest sha256 (got ${actual})`);
   }
 
-  /** Returns null when the source reports that `currentCode` is still the latest (onchain bundles only). */
-  private async fetchFromSource(source: string, currentCode: string | null): Promise<string | null> {
-    if (isOnchainSource(source)) {
-      const knownSha = currentCode ? await sha256Hex(currentCode).catch(() => null) : null;
-      return await loadOnchainCode(source, this.manifest.id, this.connector.providers, knownSha);
-    }
+  private async fetchFromSource(source: string): Promise<string> {
+    if (isOnchainSource(source)) return await loadOnchainCode(source, this.manifest.id, this.connector.providers);
 
     let url = parseUrl(source);
     if (!url) url = parseUrl(location.origin + source); // relative url
@@ -338,14 +334,7 @@ class SandboxExecutor {
     let lastError: unknown = new Error("Manifest has no executor sources");
     for (const source of executor.executorSources) {
       try {
-        const code = await this.fetchFromSource(source, currentVersion);
-        if (code === null && currentVersion !== null) {
-          this.connector.logger?.log(`Onchain bundle is unchanged`, source);
-          newVersion = currentVersion;
-          break;
-        }
-
-        if (code === null) continue;
+        const code = await this.fetchFromSource(source);
         await this.assertIntegrity(code, source);
         newVersion = code;
         this.connector.logger?.log(`New version of code fetched`, source);
