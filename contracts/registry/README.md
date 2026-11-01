@@ -50,8 +50,24 @@ near account add-key <bot> grant-function-call-access --allowance '1 NEAR' --con
 node build-scripts/registryRelease.js --registry <registry> --signer <bot> --sign "sign-with-plaintext-private-key $BOT_KEY"
 near contract call-function as-transaction <dao> add_proposal file-args build/registry/proposal.json prepaid-gas '100.0 Tgas' attached-deposit '<bond>' ...
 
+# Lock the DAO down: only the council and the release bot add proposals, the bot only FunctionCall ones, bond 0
+node build-scripts/registryManifest.js policy <dao> <bot> --out policy-proposals.json
+near account add-key <bot> grant-function-call-access --allowance '0.5 NEAR' --contract-account-id <dao> --function-names add_proposal ...
+
 # Mirror the signed manifest to a CDN
 node build-scripts/registryManifest.js export <registry> manifest.signed.json
 ```
+
+## Who can do what
+
+| Action | Who | Enforced by |
+|---|---|---|
+| `upload_bundle` | accounts in `uploaders` (set by the DAO) | registry |
+| `add_proposal` | council + `release-bot` role (`call:AddProposal` only, so no Transfer or ChangePolicy) | Sputnik policy |
+| `set_manifest`, `set_uploaders`, `set_limits`, `set_mpc_config`, `set_owner` | the DAO, after a vote | registry |
+
+With bond 0 the bot runs on two function-call keys and holds no full access key: one for `upload_bundle` on the registry, one for `add_proposal` on the DAO. A stolen key can upload junk (bounded by `max_pending_bytes`, rejected by clients via `sha256`) or open a proposal that still needs votes. It cannot move NEAR: the key allowance covers gas only.
+
+Sputnik permissions are per proposal kind, not per receiver or method, so the bot's FunctionCall proposals can target any contract; voters still check them.
 
 MPC signers: `v1.signer` (mainnet), `v1.signer-prod.testnet` (testnet). If a signature times out, anyone can call `request_manifest_signature`.

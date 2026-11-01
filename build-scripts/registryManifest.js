@@ -10,6 +10,11 @@
  *       Sputnik DAO `add_proposal` payload calling `set_manifest` (the registry then asks MPC to sign it).
  *       For releases with bundles use registryRelease.js, which also uploads them and pins sha256.
  *
+ *   node build-scripts/registryManifest.js policy   <dao> <bot> [--out policy-proposals.json]
+ *       Sputnik proposals that lock proposal creation down to the council and the release bot:
+ *       bond 0 (so the bot can propose with a function-call key), role `release-bot` with `call:AddProposal`
+ *       only, and removal of the default `all` role. Submit them in order; each needs a council vote.
+ *
  *   node build-scripts/registryManifest.js export   <registry> <out.json>
  *       Saves `get_signed_manifest` as a file to mirror on a CDN (clients verify it the same way).
  */
@@ -74,6 +79,23 @@ async function view(contract, method, args = {}) {
     const out = opt("out", "proposal.json");
     fs.writeFileSync(out, JSON.stringify(proposal, null, 2));
     console.log(`Wrote ${out}. Voters: decode args, compare the manifest with the reviewed file, check the sha256 in the description.`);
+    return;
+  }
+
+  if (cmd === "policy") {
+    const dao = registry; // positional: <dao> <bot>
+    const bot = arg;
+    if (!bot) throw new Error("Pass the bot account");
+    const kinds = [
+      ["near-connect: proposal bond 0 (proposals are limited to the council and the release bot)", { ChangePolicyUpdateParameters: { parameters: { proposal_bond: "0" } } }],
+      [`near-connect: release bot ${bot} may only add FunctionCall proposals`, { ChangePolicyAddOrUpdateRole: { role: { name: "release-bot", kind: { Group: [bot] }, permissions: ["call:AddProposal"], vote_policy: {} } } }],
+      ["near-connect: remove the default role that lets everyone add proposals", { ChangePolicyRemoveRole: { role: "all" } }],
+    ];
+    const proposals = kinds.map(([description, kind]) => ({ proposal: { description, kind } }));
+    const out = opt("out", "policy-proposals.json");
+    fs.writeFileSync(out, JSON.stringify(proposals, null, 2));
+    console.log(`Wrote ${proposals.length} proposals for ${dao} to ${out}. Submit and approve them in order (the first one still needs the current bond).`);
+    console.log(`Then give ${bot} a function-call key: receiver ${dao}, method add_proposal.`);
     return;
   }
 
