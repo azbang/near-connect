@@ -133,7 +133,6 @@
       "version": "1.0.0",
       "executor": "https://raw.githubusercontent.com/near/near-connect-ledger/refs/heads/main/ledger-executor.js",
       "type": "sandbox",
-      "keepAlive": true,
       "platform": {},
       "features": {
         "signMessage": true,
@@ -150,7 +149,8 @@
         "storage": true,
         "usb": true,
         "hid": true,
-        "bluetooth": true
+        "bluetooth": true,
+        "keepAlive": true
       }
     },
     {

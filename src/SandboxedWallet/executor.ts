@@ -12,7 +12,7 @@ const cacheId = uuid4();
 class SandboxExecutor {
   private activePanels: Record<string, Window> = {};
   readonly storageSpace: string;
-  /** The `keepAlive` iframe, reused across calls (see WalletManifest.keepAlive). */
+  /** The `keepAlive` iframe, reused across calls (see WalletPermissions.keepAlive). */
   private keptAlive: { iframe: Promise<IframeExecutor>; resolved?: IframeExecutor } | null = null;
 
   constructor(readonly connector: NearConnector, readonly manifest: WalletManifest) {
@@ -345,7 +345,7 @@ class SandboxExecutor {
 
   /** A fresh iframe per call, or the kept-alive one for `keepAlive` wallets. */
   private acquireIframe(): Promise<IframeExecutor> {
-    if (!this.manifest.keepAlive) return this.createIframe();
+    if (!this.manifest.permissions.keepAlive) return this.createIframe();
     if (this.keptAlive) return this.keptAlive.iframe;
 
     const kept: { iframe: Promise<IframeExecutor>; resolved?: IframeExecutor } = { iframe: this.createIframe() };

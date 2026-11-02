@@ -177,6 +177,7 @@ interface NearSelector {
 - `{ "allowsOpen": ["https://wallet.app"] }` Use window.selector.open for `allow` domains
 - `{ "location": true }`: Use window.selector.location for initial url from dapp
 - `{ "walletConnect": true }`: Use window.selector.walletConnect for use client
+- `{ "keepAlive": true }`: Keep the sandbox iframe alive (hidden) between calls instead of creating a fresh one per call, for executors that hold a live device connection (e.g. Ledger over Bluetooth). It is disposed on `signOut` or when the user closes the wallet modal
 
 ## Manifest features
 
