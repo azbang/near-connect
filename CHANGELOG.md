@@ -1,3 +1,7 @@
+# Unreleased
+
+- Sandboxed wallets: a result or error that `postMessage` cannot clone (e.g. an injected wallet throwing an object that holds functions) no longer throws `DataCloneError` out of the host's message handler and leaves the wallet's request hanging. Errors are retried as plain `{ name, message, code }` data; an uncloneable success result is reported to the wallet as a failure.
+
 # 0.12.0
 
 - `IframeExecutor` dispose guard: `postMessage` after the wallet popup is rejected/disposed is now a silent no-op instead of throwing "Iframe not loaded" (surfaced as broken wallet login flows when a popup was dismissed mid-request, notably on Windows). If the iframe is alive but its `contentWindow` is missing, the error now names the method: "Iframe not loaded for \<method\>".

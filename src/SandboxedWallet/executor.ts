@@ -3,6 +3,7 @@ import { NearConnector } from "../NearConnector";
 import { parseUrl } from "../helpers/url";
 import { uuid4 } from "../helpers/uuid";
 import { copyText } from "../helpers/clipboard";
+import { isDataCloneError, toCloneableError } from "../helpers/cloneable";
 import { isTelegramMiniApp, openExternalLink, openTelegramLink } from "../helpers/telegram";
 
 import IframeExecutor from "./iframe";
@@ -57,12 +58,24 @@ class SandboxExecutor {
   }
 
   _onMessage = async (iframe: IframeExecutor, event: MessageEvent) => {
+    // A result or error that structured clone rejects must still settle the sandbox's pending call,
+    // otherwise postMessage throws inside this async handler and the wallet request hangs forever.
     const success = (result: any) => {
-      iframe.postMessage({ ...event.data, status: "success", result: result });
+      try {
+        iframe.postMessage({ ...event.data, status: "success", result: result });
+      } catch (e) {
+        if (!isDataCloneError(e)) throw e;
+        iframe.postMessage({ ...event.data, status: "failed", result: `Result of ${event.data.method} could not be sent to the wallet` });
+      }
     };
 
     const failed = (error: any) => {
-      iframe.postMessage({ ...event.data, status: "failed", result: error });
+      try {
+        iframe.postMessage({ ...event.data, status: "failed", result: error });
+      } catch (e) {
+        if (!isDataCloneError(e)) throw e;
+        iframe.postMessage({ ...event.data, status: "failed", result: toCloneableError(error) });
+      }
     };
 
     if (event.data.method === "ui.showIframe") {
