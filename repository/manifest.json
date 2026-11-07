@@ -440,6 +440,41 @@
         "storage": true,
         "clipboardWrite": true
       }
+    },
+    {
+      "id": "oath-wallet",
+      "name": "Oath Wallet",
+      "icon": "https://raw.githubusercontent.com/azbang/near-connect/main/repository/oath.svg",
+      "description": "Native iOS wallet. Connect through WalletConnect to review and sign NEAR transactions and contract calls.",
+      "website": "https://oathwallet.org",
+      "version": "1.0.0",
+      "executor": "https://raw.githubusercontent.com/azbang/near-connect/main/repository/oath-wallet.js",
+      "type": "sandbox",
+      "platform": {
+        "ios": "https://apps.apple.com/app/id6780187283"
+      },
+      "permissions": {
+        "storage": true,
+        "walletConnect": true,
+        "clipboardWrite": true,
+        "allowsOpen": [
+          "oathwallet://",
+          "https://oathwallet.org"
+        ]
+      },
+      "features": {
+        "signMessage": false,
+        "signTransaction": false,
+        "signInWithoutAddKey": true,
+        "signInAndSignMessage": false,
+        "signInWithFunctionCallKey": false,
+        "signAndSendTransaction": true,
+        "signAndSendTransactions": true,
+        "signDelegateActions": false,
+        "gasKeys": false,
+        "mainnet": true,
+        "testnet": true
+      }
     }
   ]
 }

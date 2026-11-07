@@ -4,10 +4,11 @@ interface Window {
   selector: {
     nearConnectVersion?: string;
     walletConnect: {
+      supportsSessionFilters?: boolean;
       connect: (params: EngineTypes.ConnectParams) => Promise<SessionTypes.Struct>;
       disconnect: (params: EngineTypes.DisconnectParams) => Promise<void>;
       request: (params: EngineTypes.RequestParams) => Promise<any>;
-      getSession: () => Promise<SessionTypes.Struct>;
+      getSession: (params?: { topic?: string; pairingTopic?: string }) => Promise<SessionTypes.Struct>;
       getProjectId: () => Promise<string>;
     };
 

@@ -13,3 +13,5 @@ Avaiable wallets in manifest:
 - unity-wallet
 - ethereum-wallets
 - near-cli
+
+- oath-wallet — iOS, WalletConnect transaction signing ([validation and scope](../near-wallets/test/OATH.md))

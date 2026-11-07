@@ -203,6 +203,7 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
         },
 
         walletConnect: {
+          supportsSessionFilters: true,
           connect(params) {
             return window.selector.call("walletConnect.connect", params);
           },
@@ -215,8 +216,8 @@ async function getIframeCode(args: { id: string; executor: SandboxExecutor; code
           getProjectId() {
             return window.selector.call("walletConnect.getProjectId", {});
           },
-          getSession() {
-            return window.selector.call("walletConnect.getSession", {});
+          getSession(params = {}) {
+            return window.selector.call("walletConnect.getSession", params);
           },
         },
       
