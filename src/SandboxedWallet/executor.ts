@@ -12,6 +12,8 @@ const cacheId = uuid4();
 class SandboxExecutor {
   private activePanels: Record<string, Window> = {};
   readonly storageSpace: string;
+  /** The `keepAlive` iframe, reused across calls (see WalletPermissions.keepAlive). */
+  private keptAlive: { iframe: Promise<IframeExecutor>; resolved?: IframeExecutor } | null = null;
 
   constructor(readonly connector: NearConnector, readonly manifest: WalletManifest) {
     this.storageSpace = manifest.id;
@@ -329,12 +331,7 @@ class SandboxExecutor {
     return await task;
   }
 
-  async call<T>(method: string, params: any): Promise<T> {
-    this.connector.logger?.log(`Add to queue`, method, params);
-
-    // return this.queue.enqueue(async () => {
-    this.connector.logger?.log(`Calling method`, method, params);
-
+  private async createIframe(): Promise<IframeExecutor> {
     const code = await this.loadCode();
     this.connector.logger?.log(`Code loaded, preparing`);
 
@@ -343,14 +340,58 @@ class SandboxExecutor {
 
     await iframe.readyPromise;
     this.connector.logger?.log(`Iframe ready`);
+    return iframe;
+  }
+
+  /** A fresh iframe per call, or the kept-alive one for `keepAlive` wallets. */
+  private acquireIframe(): Promise<IframeExecutor> {
+    if (!this.manifest.permissions.keepAlive) return this.createIframe();
+    if (this.keptAlive) return this.keptAlive.iframe;
+
+    const kept: { iframe: Promise<IframeExecutor>; resolved?: IframeExecutor } = { iframe: this.createIframe() };
+    this.keptAlive = kept;
+    kept.iframe.then(
+      (iframe) => {
+        kept.resolved = iframe;
+        // Closing the wallet modal ends it; the next call starts fresh.
+        iframe.on("close", () => {
+          if (this.keptAlive === kept) this.keptAlive = null;
+        });
+      },
+      () => {
+        if (this.keptAlive === kept) this.keptAlive = null;
+      },
+    );
+    return kept.iframe;
+  }
+
+  private releaseIframe(iframe: IframeExecutor, method: string) {
+    const kept = this.keptAlive?.resolved === iframe;
+    if (kept && method !== "wallet:signOut") {
+      iframe.hide();
+      return;
+    }
+    if (kept) this.keptAlive = null;
+    iframe.dispose();
+  }
+
+  async call<T>(method: string, params: any): Promise<T> {
+    this.connector.logger?.log(`Add to queue`, method, params);
+
+    // return this.queue.enqueue(async () => {
+    this.connector.logger?.log(`Calling method`, method, params);
+
+    const iframe = await this.acquireIframe();
 
     const id = uuid4();
     return new Promise<T>((resolve, reject) => {
+      const onClose = () => reject(new Error("Wallet closed"));
       try {
         const handler = (event: MessageEvent) => {
           if (event.data.id !== id || event.data.origin !== iframe.origin) return;
 
-          iframe.dispose();
+          iframe.off("close", onClose);
+          this.releaseIframe(iframe, method);
           window.removeEventListener("message", handler);
           this.connector.logger?.log("postMessage", { result: event.data, request: { method, params } });
 
@@ -360,7 +401,7 @@ class SandboxExecutor {
 
         window.addEventListener("message", handler);
         iframe.postMessage({ method, params, id });
-        iframe.on("close", () => reject(new Error("Wallet closed")));
+        iframe.on("close", onClose);
       } catch (e) {
         this.connector.logger?.log(`Iframe error`, e);
         reject(e);

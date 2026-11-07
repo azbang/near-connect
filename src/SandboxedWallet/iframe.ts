@@ -62,6 +62,10 @@ class IframeExecutor {
     this.events.on(event, callback);
   }
 
+  off(event: "close", callback: () => void) {
+    this.events.off(event, callback);
+  }
+
   show() {
     this.popup.show();
   }
