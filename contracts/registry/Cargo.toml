@@ -1,0 +1,25 @@
+[package]
+name = "near-connect-registry"
+version = "0.1.0"
+edition = "2021"
+description = "On-chain registry for NEAR Connect: wallet manifest and content-addressed executor bundles"
+license = "MIT"
+repository = "https://github.com/hot-dao/near-selector"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "5.23.0"
+
+[dev-dependencies]
+near-sdk = { version = "5.23.0", features = ["unit-testing"] }
+ed25519-dalek = "2"
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true

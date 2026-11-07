@@ -44,3 +44,28 @@ export function encodeBase58(bytes: Uint8Array): string {
   }
   return result;
 }
+
+export function decodeBase58(str: string): Uint8Array {
+  let zeros = 0;
+  while (zeros < str.length && str[zeros] === BASE58_ALPHABET[0]) zeros++;
+
+  // Little-endian base256 digits
+  const bytes: number[] = [];
+  for (let i = zeros; i < str.length; i++) {
+    let carry = BASE58_ALPHABET.indexOf(str[i]);
+    if (carry < 0) throw new Error(`Invalid base58 character "${str[i]}"`);
+    for (let j = 0; j < bytes.length; j++) {
+      carry += bytes[j] * 58;
+      bytes[j] = carry & 0xff;
+      carry >>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+
+  const out = new Uint8Array(zeros + bytes.length);
+  for (let k = 0; k < bytes.length; k++) out[out.length - 1 - k] = bytes[k];
+  return out;
+}

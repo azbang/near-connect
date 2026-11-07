@@ -151,7 +151,19 @@ export interface WalletManifest {
   description: string;
   website: string;
   version: string;
-  executor: string;
+  /**
+   * Where the executor bundle is loaded from. A list is tried in order (fallbacks).
+   * - `https://...` (CDN, IPFS gateway, relative path)
+   * - `onchain:<contractId>:<method>`: a view call `method({ wallet_id })` through the dApp's RPC providers,
+   *   returning the raw bundle, gzip or plain (e.g. `onchain:registry.near:get_code`)
+   */
+  executor: string | string[];
+  /**
+   * Hex sha256 of the executor code (decoded, not gzip). When set, code from any source (and from cache)
+   * that does not match is rejected and never executed. Required for sandbox wallets when the connector
+   * has `manifestPublicKeys`, and for wallets served by the on-chain registry.
+   */
+  sha256?: string;
   type: "sandbox" | "injected";
   permissions: WalletPermissions;
   features: WalletFeatures;

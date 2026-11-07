@@ -1,6 +1,7 @@
 import { WalletManifest, WalletPermissions } from "../types";
 import { NearConnector } from "../NearConnector";
 import { parseUrl } from "../helpers/url";
+import { isOnchainSource, loadOnchainCode, normalizeHash, sha256Hex } from "../helpers/onchain";
 import { uuid4 } from "../helpers/uuid";
 import { copyText } from "../helpers/clipboard";
 import { isDataCloneError, toCloneableError } from "../helpers/cloneable";
@@ -301,23 +302,65 @@ class SandboxExecutor {
   };
 
   private actualCode: string | null = null;
+
+  /** `executor` may be a single source or an ordered list of fallbacks. */
+  get executorSources(): string[] {
+    const executor = this.manifest.executor;
+    const sources = Array.isArray(executor) ? executor : [executor];
+    return sources.filter((source) => typeof source === "string" && source.length > 0);
+  }
+
+  get expectedSha256(): string | null {
+    return this.manifest.sha256 ? normalizeHash(this.manifest.sha256) : null;
+  }
+
+  /** Throws unless `code` matches `manifest.sha256` (when set). */
+  private async assertIntegrity(code: string, source: string) {
+    const expected = this.expectedSha256;
+    if (!expected) return;
+    const actual = await sha256Hex(code);
+    if (actual !== expected) throw new Error(`Executor from ${source} does not match manifest sha256 (got ${actual})`);
+  }
+
+  private async fetchFromSource(source: string): Promise<string> {
+    if (isOnchainSource(source)) return await loadOnchainCode(source, this.manifest.id, this.connector.providers);
+
+    let url = parseUrl(source);
+    if (!url) url = parseUrl(location.origin + source); // relative url
+    if (!url) throw new Error("Invalid executor URL");
+
+    url.searchParams.set("nonce", cacheId);
+    return await fetch(url.toString()).then((res) => {
+      // An error page (raw.githubusercontent 429/5xx) must not be cached and run as the executor
+      if (!res.ok) throw new Error(`Failed to load executor: ${res.status}`);
+      return res.text();
+    });
+  }
+
   async checkNewVersion(executor: SandboxExecutor, currentVersion: string | null) {
     if (this.actualCode) {
       this.connector.logger?.log(`New version of code already checked`);
       return this.actualCode;
     }
 
-    let url = parseUrl(executor.manifest.executor);
-    if (!url) url = parseUrl(location.origin + executor.manifest.executor); // relative url
-    if (!url) throw new Error("Invalid executor URL");
+    // Sources are tried in order; a source whose content fails the sha256 check counts as failed,
+    // so a compromised CDN falls through to the next source instead of being executed
+    let newVersion: string | null = null;
+    let lastError: unknown = new Error("Manifest has no executor sources");
+    for (const source of executor.executorSources) {
+      try {
+        const code = await this.fetchFromSource(source);
+        await this.assertIntegrity(code, source);
+        newVersion = code;
+        this.connector.logger?.log(`New version of code fetched`, source);
+        break;
+      } catch (e) {
+        lastError = e;
+        this.connector.logger?.log(`Failed to load executor`, source, e);
+      }
+    }
 
-    url.searchParams.set("nonce", cacheId);
-    const newVersion = await fetch(url.toString()).then((res) => {
-      // An error page (raw.githubusercontent 429/5xx) must not be cached and run as the executor
-      if (!res.ok) throw new Error(`Failed to load executor: ${res.status}`);
-      return res.text();
-    });
-    this.connector.logger?.log(`New version of code fetched`);
+    if (newVersion === null) throw lastError;
     this.actualCode = newVersion;
 
     if (newVersion === currentVersion) {
@@ -336,11 +379,22 @@ class SandboxExecutor {
   }
 
   async loadCode(): Promise<string> {
-    const cachedCode = await this.connector.db.getItem<string>(`${this.manifest.id}:${this.manifest.version}`).catch(() => null);
+    let cachedCode = await this.connector.db.getItem<string>(`${this.manifest.id}:${this.manifest.version}`).catch(() => null);
     this.connector.logger?.log(`Code loaded from cache`, cachedCode !== null);
 
+    if (cachedCode && this.expectedSha256) {
+      // Pinned code: a matching cache is final, no network round trip; a stale or tampered cache is dropped
+      const valid = await this.assertIntegrity(cachedCode, "cache").then(() => true, () => false);
+      if (valid) return cachedCode;
+      this.connector.logger?.log(`Cached code does not match manifest sha256, refetching`);
+      cachedCode = null;
+    }
+
     const task = this.checkNewVersion(this, cachedCode as string | null);
-    if (cachedCode) return cachedCode;
+    if (cachedCode) {
+      task.catch((e) => this.connector.logger?.log(`Background executor update failed`, e));
+      return cachedCode;
+    }
     return await task;
   }
 
