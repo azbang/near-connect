@@ -17,6 +17,7 @@ import { NearConnector } from "../NearConnector";
 import { nearActionsToConnectorActions } from "../actions";
 import { assertGasKeyActionsSupported } from "../actions/gas-keys";
 import SandboxExecutor from "./executor";
+import { screenAndSend } from "../screen";
 
 export class SandboxWallet {
   executor: SandboxExecutor;
@@ -57,8 +58,12 @@ export class SandboxWallet {
   async signAndSendTransaction(params: SignAndSendTransactionParams): Promise<FinalExecutionOutcome> {
     const actions = nearActionsToConnectorActions(params.actions);
     assertGasKeyActionsSupported(this.manifest.features, actions, this.manifest.name);
-    const args = { ...params, actions, network: params.network ?? this.connector.network };
-    return this.executor.call("wallet:signAndSendTransaction", args);
+    const network = params.network ?? this.connector.network;
+    const args = { ...params, actions, network };
+    const send = () => this.executor.call("wallet:signAndSendTransaction", args) as Promise<FinalExecutionOutcome>;
+    if (!this.connector.screen) return send();
+    const signerId = params.signerId ?? (await this.getAccounts({ network }))[0]?.accountId ?? "";
+    return screenAndSend<FinalExecutionOutcome>(this.connector.screen, [{ receiverId: params.receiverId, actions }], network, signerId, send);
   }
 
   async signAndSendTransactions(params: SignAndSendTransactionsParams): Promise<Array<FinalExecutionOutcome>> {
@@ -68,8 +73,12 @@ export class SandboxWallet {
     }));
     assertGasKeyActionsSupported(this.manifest.features, transactions.flatMap((transaction) => transaction.actions), this.manifest.name);
 
-    const args = { ...params, transactions, network: params.network ?? this.connector.network };
-    return this.executor.call("wallet:signAndSendTransactions", args);
+    const network = params.network ?? this.connector.network;
+    const args = { ...params, transactions, network };
+    const send = () => this.executor.call("wallet:signAndSendTransactions", args) as Promise<FinalExecutionOutcome[]>;
+    if (!this.connector.screen) return send();
+    const signerId = params.signerId ?? (await this.getAccounts({ network }))[0]?.accountId ?? "";
+    return screenAndSend<FinalExecutionOutcome[]>(this.connector.screen, transactions, network, signerId, send);
   }
 
   async signMessage(params: SignMessageParams): Promise<SignedMessage> {

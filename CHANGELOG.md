@@ -1,5 +1,6 @@
 # Unreleased
 
+- Add opt-in pre-sign transaction screening (`screen` option). Blocks stop the transaction before the wallet is contacted: OFAC-listed recipients, lookalikes of addresses the signed-in account sent to before (history is per account and network), lookalikes of well-known contracts (`intents.near`, `wrap.near`, `v2.ref-finance.near`, `usdt.tether-token.near`) and full-access `AddKey`. Warnings open the connector popup with a continue override: NEAR account list matches, broad function-call keys, recently created accounts or changed contract code, and Ref Finance swaps whose minimum output is far below the input's value. The OFAC and NEAR account lists are bundled and versioned; `listUrl` and `nearAccountListUrl` fetch newer ones and fall back to the bundle. `scripts/screen-latency.sh` measures the added time; the example app enables screening with `?screen`.
 - Sandboxed wallets: a result or error that `postMessage` cannot clone (e.g. an injected wallet throwing an object that holds functions) no longer throws `DataCloneError` out of the host's message handler and leaves the wallet's request hanging. Errors are retried as plain `{ name, message, code }` data; an uncloneable success result is reported to the wallet as a failure.
 
 # 0.12.0
@@ -11,7 +12,7 @@
 - `SignedDelegate` actions inside a transaction now throw a clear error instead of being passed through; delegates are signed via `signDelegateActions`.
 - Fix `deployGlobalContract` mapping: the `AccountId` deploy mode (which near-api-js stores as `null`) now maps correctly in all shapes, and the `enum` field is treated as authoritative so the inactive variant key no longer misclassifies the mode.
 - `useGlobalContract` identifier mapping is null-safe (`AccountId: ""` no longer falls through to `codeHash`).
-- New manifest feature `gasKeys` with a fail-closed host-side gate. Every wallet wrapper (sandbox, injected, parent-frame) refuses gas-key actions — `AddKey` with `gasKeyInfo`, `TransferToGasKey`, `WithdrawFromGasKey` — for wallets that do not advertise the feature (`assertGasKeyActionsSupported`, exported, along with `isGasKeyAction` and the `GasKeyInfo` type). A wallet that predates gas keys would at best reject the request, and at worst ignore the unknown `gasKeyInfo` field and add a *plain* key with the permission it does understand. No bundled wallet advertises `gasKeys` yet; flipping the flag per wallet requires a verified sign-and-send first.
+- New manifest feature `gasKeys` with a fail-closed host-side gate. Every wallet wrapper (sandbox, injected, parent-frame) refuses gas-key actions: `AddKey` with `gasKeyInfo`, `TransferToGasKey`, and `WithdrawFromGasKey` for wallets that do not advertise the feature (`assertGasKeyActionsSupported`, exported, along with `isGasKeyAction` and the `GasKeyInfo` type). A wallet that predates gas keys would at best reject the request, and at worst ignore the unknown `gasKeyInfo` field and add a *plain* key with the permission it does understand. No bundled wallet advertises `gasKeys` yet; flipping the flag per wallet requires a verified sign-and-send first.
 
 # 0.11.5
 

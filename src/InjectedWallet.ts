@@ -16,6 +16,7 @@ import {
 import { NearConnector } from "./NearConnector";
 import { nearActionsToConnectorActions } from "./actions";
 import { assertGasKeyActionsSupported } from "./actions/gas-keys";
+import { screenAndSend } from "./screen";
 
 export class InjectedWallet implements NearWalletBase {
   constructor(
@@ -55,12 +56,17 @@ export class InjectedWallet implements NearWalletBase {
     assertGasKeyActionsSupported(this.manifest.features, actions, this.manifest.name);
     const network = params.network ?? this.connector.network;
 
-    const result = await this.wallet.signAndSendTransaction({ ...params, actions, network });
-    if (!result) throw new Error("No result from wallet");
+    const send = async () => {
+      const result = await this.wallet.signAndSendTransaction({ ...params, actions, network });
+      if (!result) throw new Error("No result from wallet");
 
-    // @ts-ignore
-    if (Array.isArray(result.transactions)) return result.transactions[0];
-    return result;
+      // @ts-ignore
+      if (Array.isArray(result.transactions)) return result.transactions[0];
+      return result;
+    };
+    if (!this.connector.screen) return send();
+    const signerId = params.signerId ?? (await this.getAccounts({ network }))[0]?.accountId ?? "";
+    return screenAndSend(this.connector.screen, [{ receiverId: params.receiverId, actions }], network, signerId, send);
   }
 
   async signAndSendTransactions(params: SignAndSendTransactionsParams): Promise<Array<FinalExecutionOutcome>> {
@@ -71,12 +77,17 @@ export class InjectedWallet implements NearWalletBase {
     }));
     assertGasKeyActionsSupported(this.manifest.features, transactions.flatMap((transaction) => transaction.actions), this.manifest.name);
 
-    const result = await this.wallet.signAndSendTransactions({ ...params, transactions, network });
-    if (!result) throw new Error("No result from wallet");
+    const send = async () => {
+      const result = await this.wallet.signAndSendTransactions({ ...params, transactions, network });
+      if (!result) throw new Error("No result from wallet");
 
-    // @ts-ignore
-    if (Array.isArray(result.transactions)) return result.transactions;
-    return result;
+      // @ts-ignore
+      if (Array.isArray(result.transactions)) return result.transactions;
+      return result;
+    };
+    if (!this.connector.screen) return send();
+    const signerId = params.signerId ?? (await this.getAccounts({ network }))[0]?.accountId ?? "";
+    return screenAndSend(this.connector.screen, transactions, network, signerId, send);
   }
 
   async signMessage(params: SignMessageParams): Promise<SignedMessage> {

@@ -12,6 +12,19 @@ export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 export type Network = "mainnet" | "testnet";
 
+export interface ScreenOptions {
+  listUrl?: string;
+  nearAccountListUrl?: string;
+  contractFreshnessHours?: number;
+  /** Warn when a swap's minimum output is worth this much less than its input. Default 20. */
+  maxSwapLossPercent?: number;
+  /**
+   * Optional plain-language explanation of warnings, for example from your own server calling NEAR AI Cloud.
+   * Runs only for warnings, never changes a verdict, and is ignored after 12 s or on error. Never put an API key in browser code.
+   */
+  explain?: (findings: Array<{ level: "block" | "warn" | "ok"; reason: string; evidence_url?: string }>) => Promise<string | undefined>;
+}
+
 export interface FunctionCallAccessKey_AllowMethods_AnyMethod {
   anyMethod: true;
 }

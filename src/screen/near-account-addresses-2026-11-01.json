@@ -1,0 +1,28 @@
+{
+  "version": "2026-11-01",
+  "source": "https://github.com/kacpergumieniuk/mimicwatch-near/tree/0906683760d32ae0438f6ab0348b4724f23dc6c5",
+  "attribution": "Mimicwatch for NEAR, MIT, review data from 2026-11-01",
+  "addresses": [
+    {
+      "address": "burrowfinancedao.near",
+      "currency": "NEAR",
+      "name": "Burrow Finance Rewards fake-token account",
+      "level": "warn",
+      "evidence_url": "https://github.com/kacpergumieniuk/mimicwatch-near/blob/0906683760d32ae0438f6ab0348b4724f23dc6c5/evidence/account/burrowfinancedao.near.json"
+    },
+    {
+      "address": "linear_protocol.near",
+      "currency": "NEAR",
+      "name": "LiNEAR Protocol Rewards fake-token account",
+      "level": "warn",
+      "evidence_url": "https://github.com/kacpergumieniuk/mimicwatch-near/blob/0906683760d32ae0438f6ab0348b4724f23dc6c5/evidence/account/linear_protocol.near.json"
+    },
+    {
+      "address": "metapools.near",
+      "currency": "NEAR",
+      "name": "Meta Pool Rewards fake-token account",
+      "level": "warn",
+      "evidence_url": "https://github.com/kacpergumieniuk/mimicwatch-near/blob/0906683760d32ae0438f6ab0348b4724f23dc6c5/evidence/account/metapools.near.json"
+    }
+  ]
+}

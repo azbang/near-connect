@@ -15,6 +15,7 @@ import type {
   FooterBranding,
   NearConnector_ConnectOptions,
   AddFunctionCallKeyParams,
+  ScreenOptions,
 } from "./types";
 import type { WalletPlugin } from "./types/plugin";
 
@@ -36,6 +37,7 @@ export interface NearConnectorOptions {
   storage?: DataStorage;
   logger?: Logger;
   cspNonce?: string;
+  screen?: ScreenOptions;
 
   /**
    * Footer branding for the wallet selector popup. If not provided, default branding will be used. If provided null, footer will be hidden.
@@ -87,6 +89,7 @@ export class NearConnector {
   excludedWallets: string[] = [];
   autoConnect?: boolean;
   cspNonce?: string;
+  screen?: ScreenOptions;
 
   readonly whenManifestLoaded: Promise<void>;
 
@@ -96,6 +99,7 @@ export class NearConnector {
     this.events = options?.events ?? new EventEmitter<EventMap>();
     this.logger = options?.logger;
     this.cspNonce = options?.cspNonce;
+    this.screen = options?.screen;
 
     this.network = options?.network ?? "mainnet";
     this.walletConnect = options?.walletConnect;
