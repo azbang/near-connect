@@ -1,5 +1,6 @@
 import { nearActionsToConnectorActions } from "./actions";
 import { assertGasKeyActionsSupported } from "./actions/gas-keys";
+import { screenAndSend } from "./screen";
 import { uuid4 } from "./helpers/uuid";
 import { NearConnector } from "./NearConnector";
 import {
@@ -75,8 +76,12 @@ export class ParentFrameWallet {
   async signAndSendTransaction(params: SignAndSendTransactionParams): Promise<FinalExecutionOutcome> {
     const connectorActions = nearActionsToConnectorActions(params.actions);
     assertGasKeyActionsSupported(this.manifest.features, connectorActions, this.manifest.name);
-    const args = { ...params, actions: connectorActions, network: params.network ?? this.connector.network };
-    return this.callParentFrame("near:signAndSendTransaction", args) as Promise<FinalExecutionOutcome>;
+    const network = params.network ?? this.connector.network;
+    const args = { ...params, actions: connectorActions, network };
+    const send = () => this.callParentFrame("near:signAndSendTransaction", args) as Promise<FinalExecutionOutcome>;
+    if (!this.connector.screen) return send();
+    const signerId = params.signerId ?? (await this.getAccounts({ network }))[0]?.accountId ?? "";
+    return screenAndSend(this.connector.screen, [{ receiverId: params.receiverId, actions: connectorActions }], network, signerId, send);
   }
 
   async signAndSendTransactions(params: SignAndSendTransactionsParams): Promise<Array<FinalExecutionOutcome>> {
@@ -85,9 +90,13 @@ export class ParentFrameWallet {
       receiverId: transaction.receiverId,
     }));
     assertGasKeyActionsSupported(this.manifest.features, transactions.flatMap((transaction) => transaction.actions), this.manifest.name);
-    const args = { ...params, transactions, network: params.network ?? this.connector.network };
+    const network = params.network ?? this.connector.network;
+    const args = { ...params, transactions, network };
 
-    return this.callParentFrame("near:signAndSendTransactions", args) as Promise<Array<FinalExecutionOutcome>>;
+    const send = () => this.callParentFrame("near:signAndSendTransactions", args) as Promise<Array<FinalExecutionOutcome>>;
+    if (!this.connector.screen) return send();
+    const signerId = params.signerId ?? (await this.getAccounts({ network }))[0]?.accountId ?? "";
+    return screenAndSend(this.connector.screen, transactions, network, signerId, send);
   }
 
   async signMessage(params: SignMessageParams): Promise<SignedMessage> {

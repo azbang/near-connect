@@ -12,6 +12,12 @@ export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 export type Network = "mainnet" | "testnet";
 
+export interface ScreenOptions {
+  listUrl?: string;
+  contractFreshnessHours?: number;
+  nearAi?: { apiKey: string };
+}
+
 export interface FunctionCallAccessKey_AllowMethods_AnyMethod {
   anyMethod: true;
 }

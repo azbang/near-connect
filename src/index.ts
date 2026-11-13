@@ -34,4 +34,5 @@ export type {
   AddFunctionCallKeyParams,
   AddFunctionCallKey_AllowMethods,
   AddFunctionCallKey_GasAllowance,
+  ScreenOptions,
 } from "./types";
