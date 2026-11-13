@@ -164,10 +164,9 @@ The `executor` endpoint called in a standalone iframe if the user decides to use
 After that, the library delegates user requests directly to `yourNearWallet` via `iframe.postMessage` communication.
 In addition, the script has the ability to draw any UI in the area allocated for the iframe that is necessary for interaction with the wallet.
 
-## Sandbox limitations
+## Sandbox permissions
 
-For security, the wallet script runs in a sandboxed iframe, which has many limitations. It cannot call modals or access an external page or use localStorage.
-The `window.selector` implements some features for this:
+For security, wallet scripts run in a sandboxed iframe. They cannot call page modals, access the dApp page, or use localStorage. `window.selector` exposes the specific page APIs listed here:
 
 ```ts
 interface NearSelector {
@@ -226,14 +225,14 @@ const connector = new NearConnector({
 });
 ```
 
-This adds the nonce to both `<script>` tags inside the iframe — the runtime bridge (`window.selector`) and the wallet module code. Without it, the iframe loads but neither script executes.
+This adds the nonce to both `<script>` tags inside the iframe: the runtime bridge (`window.selector`) and the wallet module code. Without it, the iframe loads but neither script executes.
 
-## How to add my wallet?
+## Add a wallet to NEAR Connect
 
 When you develop a connector for your wallet, you can immediately test your code on real applications that use NEAR Connect. Super easy!
 Once you have written your executor script and tested it - you only need to send a PR to update repository/manifest.json. After review, your wallet will automatically become available to all dApps that use the NEAR Connect.
 
-![Preview](https://github.com/user-attachments/assets/80855260-82f3-4c35-ae27-034e263c7b71)
+![NEAR Connect wallet selector](https://github.com/user-attachments/assets/80855260-82f3-4c35-ae27-034e263c7b71)
 
 ## Injected wallets
 
