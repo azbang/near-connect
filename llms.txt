@@ -77,7 +77,7 @@ interface ScreenOptions {
   nearAccountListUrl?: string;             // NEAR account list JSON; bundled list is the fallback
   contractFreshnessHours?: number;         // Default 24
   maxSwapLossPercent?: number;             // Default 20
-  nearAi?: { apiKey: string };             // Plain-language explanation of warnings
+  explain?: (findings) => Promise<string | undefined>; // Plain-language explanation of warnings (call your own server)
 }
 ```
 

@@ -196,24 +196,11 @@ const contractChecks = async (accountId: string, network: Network, hours: number
   }
 };
 
-const explain = async (apiKey: string, checks: ScreenCheck[]) => {
+const explain = async (callback: NonNullable<ScreenOptions["explain"]>, checks: ScreenCheck[]) => {
   try {
-    const modelsResponse = await fetch("https://cloud-api.near.ai/v1/models", {
-      headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(5000),
-    });
-    if (!modelsResponse.ok) return undefined;
-    const models = await modelsResponse.json();
-    const model = models.data?.[0]?.id;
-    if (!model) return undefined;
-    const response = await fetch("https://cloud-api.near.ai/v1/chat/completions", {
-      method: "POST",
-      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ model, messages: [{ role: "user", content: `Explain these transaction screening findings in one plain-language paragraph. Do not change their severity or claim unverified facts: ${JSON.stringify(checks)}` }], max_tokens: 160 }),
-      signal: AbortSignal.timeout(12000),
-    });
-    if (!response.ok) return undefined;
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content as string | undefined;
+    const timeout = new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 12000));
+    const text = await Promise.race([callback(checks.map(({ level, reason, evidence_url }) => ({ level, reason, evidence_url }))), timeout]);
+    return typeof text === "string" && text.trim() ? text.trim().slice(0, 600) : undefined;
   } catch {
     return undefined;
   }
@@ -303,7 +290,7 @@ export const approveScreen = async (checks: ScreenCheck[], options: ScreenOption
   const warnings = checks.filter((check) => check.level === "warn");
   if (!warnings.length) return;
   const reason = warnings.map((check) => `${check.reason} (${check.evidence_url})`).join("\n\n");
-  const explanation = options.nearAi ? await explain(options.nearAi.apiKey, warnings) : undefined;
+  const explanation = options.explain ? await explain(options.explain, warnings) : undefined;
   if (typeof document === "undefined") throw new Error("A browser is required to review transaction warnings");
   const previousFocus = document.activeElement as HTMLElement | null;
   await new Promise<void>((resolve, reject) => {

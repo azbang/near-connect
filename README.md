@@ -69,7 +69,7 @@ The screen step adds a median of 0.5 s on mainnet (9 runs against `rpc.mainnet.f
 
 Add `?screen` to the URL of the [example app](example) to see a blocked transfer and a warning.
 
-Set `nearAi: { apiKey }` to request a plain-language explanation from NEAR AI Cloud. The screening result does not depend on that request. The browser sends this key to NEAR AI Cloud, so do not use a credential that must remain private in a public dApp bundle.
+Set `explain: async (findings) => text` to show a plain-language explanation under a warning, for example from your own server calling NEAR AI Cloud. It never changes a verdict and is ignored after 12 seconds or on error. Keep API keys on your server, not in browser code.
 
 ### Listen for "sign in" events
 
