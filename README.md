@@ -45,7 +45,29 @@ const connector = new NearConnector({
 });
 ```
 
-The connector checks transfer and withdrawal recipients against its bundled, versioned OFAC SDN digital-currency address list. Set `listUrl` to fetch a JSON list with the same `{ version, addresses: [{ address, currency, name }] }` shape; a failed request uses the bundled Treasury snapshot. It also compares the receiver account and contract code at the current block with their state at the configured age, and stores successful destinations locally to detect address-poisoning lookalikes. A block stops the transaction. A warning opens the connector popup and requires the user to choose whether to continue.
+Every transaction is checked before the wallet sees it. Each finding has a level:
+
+- **block** stops the transaction and throws `ScreenBlockedError`. The wallet is never contacted.
+- **warn** opens the connector popup with the reason and an evidence link. "Continue anyway" hands the transaction to the wallet. "Cancel", Escape, or a click outside rejects it.
+
+| Check | Level |
+| --- | --- |
+| Recipient is on the OFAC SDN digital-currency list | block |
+| Recipient resembles an address this wallet sent to before (same first and last 4 characters, different address) | block |
+| Receiver looks like `intents.near`, `wrap.near`, `v2.ref-finance.near` or `usdt.tether-token.near` without being it | block |
+| `AddKey` with a full-access key | block |
+| Recipient is on the NEAR account list | the entry's level, `warn` for the bundled entries |
+| Function-call key for many methods, or with an allowance above 1 NEAR or none | warn |
+| Receiver account or contract code is newer than `contractFreshnessHours` (default 24) | warn |
+| Ref Finance swap whose minimum output is worth more than `maxSwapLossPercent` (default 20) below its input at DefiLlama prices | warn |
+
+Both address lists are bundled with a version, so screening works offline. Set `listUrl` (OFAC) or `nearAccountListUrl` (NEAR accounts) to fetch a newer JSON list of the shape `{ version, addresses: [{ address, level?, name?, evidence_url? }] }`; an unreachable or malformed list falls back to the bundled one. The bundled NEAR account list holds the fake-airdrop token accounts published with evidence by [Mimicwatch for NEAR](https://github.com/kacpergumieniuk/mimicwatch-near) (MIT).
+
+Address-poisoning detection is scoped to the signed-in wallet. The connector remembers the destinations of transactions that this account sent through it, in `localStorage` under that account and network, and compares new recipients only against those. There is no global list, and another account in the same browser starts with an empty history.
+
+The screen step adds a median of 0.5 s on mainnet (9 runs against `rpc.mainnet.fastnear.com`: 519 ms cold, 478 ms warm), and under 1 ms when the recipient is not a NEAR account. Reproduce it with `scripts/screen-latency.sh mainnet`. `scripts/screen-test.sh` runs the checks against sanctioned addresses, a freshly deployed testnet contract and live prices.
+
+Add `?screen` to the URL of the [example app](example) to see a blocked transfer and a warning.
 
 Set `nearAi: { apiKey }` to request a plain-language explanation from NEAR AI Cloud. The screening result does not depend on that request. The browser sends this key to NEAR AI Cloud, so do not use a credential that must remain private in a public dApp bundle.
 

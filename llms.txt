@@ -69,8 +69,19 @@ interface NearConnectorOptions {
   isBannedNearAddress?: (address: string) => Promise<boolean>;
   signIn?: { contractId?: string; methodNames?: string[] };  // Deprecated
   cspNonce?: string;                       // CSP nonce for srcdoc iframe scripts
+  screen?: ScreenOptions;                  // Opt-in pre-sign screening, off by default
+}
+
+interface ScreenOptions {
+  listUrl?: string;                        // OFAC address list JSON; bundled list is the fallback
+  nearAccountListUrl?: string;             // NEAR account list JSON; bundled list is the fallback
+  contractFreshnessHours?: number;         // Default 24
+  maxSwapLossPercent?: number;             // Default 20
+  nearAi?: { apiKey: string };             // Plain-language explanation of warnings
 }
 ```
+
+Screening runs before the wallet receives a transaction. A "block" finding throws `ScreenBlockedError`; a "warn" finding opens a popup where the user can continue or cancel. Checks: OFAC recipients, lookalikes of addresses this account sent to before, lookalikes of well-known contracts, full-access `AddKey`, NEAR account list matches, broad function-call keys, fresh accounts or contract code, and swaps with a far-below-market minimum output.
 
 ## NearConnector Methods
 

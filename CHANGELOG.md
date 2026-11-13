@@ -1,6 +1,6 @@
 # Unreleased
 
-- Add opt-in pre-sign transaction screening for OFAC-listed recipients, address-poisoning lookalikes, recently created accounts, and recently changed contract code. Warnings use the connector popup and require confirmation before the wallet receives the transaction; blocks cannot be overridden.
+- Add opt-in pre-sign transaction screening (`screen` option). Blocks stop the transaction before the wallet is contacted: OFAC-listed recipients, lookalikes of addresses the signed-in account sent to before (history is per account and network), lookalikes of well-known contracts (`intents.near`, `wrap.near`, `v2.ref-finance.near`, `usdt.tether-token.near`) and full-access `AddKey`. Warnings open the connector popup with a continue override: NEAR account list matches, broad function-call keys, recently created accounts or changed contract code, and Ref Finance swaps whose minimum output is far below the input's value. The OFAC and NEAR account lists are bundled and versioned; `listUrl` and `nearAccountListUrl` fetch newer ones and fall back to the bundle. `scripts/screen-latency.sh` measures the added time; the example app enables screening with `?screen`.
 - Sandboxed wallets: a result or error that `postMessage` cannot clone (e.g. an injected wallet throwing an object that holds functions) no longer throws `DataCloneError` out of the host's message handler and leaves the wallet's request hanging. Errors are retried as plain `{ name, message, code }` data; an uncloneable success result is reported to the wallet as a failure.
 
 # 0.12.0

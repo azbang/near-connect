@@ -8,6 +8,10 @@ import type { NearConnector_ConnectOptions } from "../../src/types/index.ts";
 import { NetworkSelector } from "./form-component/NetworkSelector.tsx";
 import { WalletActions } from "./WalletActions.tsx";
 import { parseNearAmount } from "@near-js/utils";
+import { smallGreyText } from "./ui/tailwind-vars.ts";
+
+// Add ?screen to the URL to check every transaction before it reaches the wallet.
+const screen = new URLSearchParams(window.location.search).has("screen") ? {} : undefined;
 
 export const ExampleNEAR: FC = () => {
   const [network, setNetwork] = useState<"testnet" | "mainnet">("mainnet");
@@ -41,6 +45,7 @@ export const ExampleNEAR: FC = () => {
       walletConnect,
       network,
       logger,
+      screen,
     });
 
     connector.on("wallet:signIn", async (t) => {
@@ -133,6 +138,13 @@ export const ExampleNEAR: FC = () => {
             Connect (With Add Key)
           </button>
         </>
+      )}
+
+      {networkAccount != null && screen && (
+        <p className={smallGreyText}>
+          Screening is on. Send a Transfer to 12aNKp2iDKuhEde2YfPdd4DFGenRUTKupL (OFAC-listed) to see it blocked, or to burrowfinancedao.near (a reported fake-airdrop token)
+          to see a warning. Cancel stops the transaction before the wallet opens.
+        </p>
       )}
 
       {networkAccount != null && <WalletActions extendedSecretKey={extendedSecretKey} wallet={wallet!} network={network} />}
