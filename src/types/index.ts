@@ -14,7 +14,10 @@ export type Network = "mainnet" | "testnet";
 
 export interface ScreenOptions {
   listUrl?: string;
+  nearAccountListUrl?: string;
   contractFreshnessHours?: number;
+  /** Warn when a swap's minimum output is worth this much less than its input. Default 20. */
+  maxSwapLossPercent?: number;
   nearAi?: { apiKey: string };
 }
 

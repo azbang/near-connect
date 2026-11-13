@@ -13,6 +13,7 @@ export type {
   WithdrawFromGasKeyAction,
 } from "./actions/types";
 export { isGasKeyAction, assertGasKeyActionsSupported } from "./actions/gas-keys";
+export { ScreenBlockedError, type ScreenCheck } from "./screen";
 export type { WalletPlugin } from "./types/plugin";
 
 export type {

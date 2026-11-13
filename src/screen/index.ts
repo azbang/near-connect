@@ -1,8 +1,10 @@
 import fallback from "./sanctioned-addresses-2026-11-09.json";
+import nearAccountsFallback from "./near-account-addresses-2026-11-01.json";
 import { html } from "../helpers/html";
 import { Popup } from "../popups/Popup";
 import type { Network, ScreenOptions, SignAndSendTransactionParams } from "../types";
 import type { ConnectorAction } from "../actions/types";
+import { accessKeyChecks, fetchPrices, lookalikeContractChecks, swapChecks, swapsIn } from "./checks";
 
 export interface ScreenCheck {
   level: "block" | "warn" | "ok";
@@ -13,7 +15,7 @@ export interface ScreenCheck {
 interface AddressList {
   version: string;
   source?: string;
-  addresses: Array<{ address: string; currency?: string; name?: string }>;
+  addresses: Array<{ address: string; currency?: string; name?: string; level?: "block" | "warn"; evidence_url?: string }>;
 }
 
 const OFAC_URL = "https://ofac.treasury.gov/sanctions-list-service";
@@ -79,24 +81,32 @@ class ScreenWarningPopup extends Popup<{}> {
   }
 }
 
-const addressList = async (listUrl?: string): Promise<AddressList> => {
+const addressList = async (listUrl: string | undefined, local: AddressList): Promise<AddressList> => {
   if (listUrl) {
     try {
       const response = await fetch(listUrl, { signal: AbortSignal.timeout(5000) });
       if (response.ok) {
         const list = (await response.json()) as AddressList;
-        if (Array.isArray(list.addresses) && list.addresses.every((entry) => typeof entry.address === "string")) return list;
+        if (typeof list.version === "string" && Array.isArray(list.addresses) && list.addresses.every((entry) => typeof entry.address === "string" && (!entry.level || entry.level === "block" || entry.level === "warn"))) return list;
       }
     } catch {
-      // A failed list refresh uses the bundled Treasury snapshot.
+      // A failed list refresh uses the bundled snapshot.
     }
   }
-  return fallback as AddressList;
+  return local;
 };
 
 const sameAddress = (a: string, b: string) => {
   const lowerCase = (value: string) => /^0x/i.test(value) || value.toLowerCase().startsWith("bc1");
   return lowerCase(a) && lowerCase(b) ? a.toLowerCase() === b.toLowerCase() : a === b;
+};
+
+// First and last 4 characters match, the rest differs. Named accounts are compared without their
+// `.near`/`.testnet` suffix, otherwise every `abcd*.near` pair would match.
+const lookalike = (a: string, b: string) => {
+  const trim = (value: string) => (/^(0x|bc1)/i.test(value) ? value.toLowerCase() : value).replace(/\.(near|testnet)$/, "");
+  const [x, y] = [trim(a), trim(b)];
+  return x !== y && x.length > 8 && y.length > 8 && x.slice(0, 4) === y.slice(0, 4) && x.slice(-4) === y.slice(-4);
 };
 
 const recipients = (receiverId: string, actions: ConnectorAction[]) => {
@@ -213,7 +223,8 @@ const historyKey = (network: Network, signerId: string) => `near-connect-screen:
 
 const readHistory = (network: Network, signerId: string) => {
   try {
-    return JSON.parse(localStorage.getItem(historyKey(network, signerId)) ?? "[]") as string[];
+    const history = JSON.parse(localStorage.getItem(historyKey(network, signerId)) ?? "[]");
+    return Array.isArray(history) ? history.filter((address): address is string => typeof address === "string") : [];
   } catch {
     return [];
   }
@@ -233,6 +244,7 @@ export const screenAddressChecks = (
   previous: string[],
   list: AddressList = fallback as AddressList,
   network: Network = "mainnet",
+  nearAccounts: AddressList = nearAccountsFallback as AddressList,
 ): ScreenCheck[] => {
   const checks: ScreenCheck[] = [];
   for (const recipient of destinations) {
@@ -242,7 +254,16 @@ export const screenAddressChecks = (
     }
   }
   for (const recipient of destinations) {
-    if (previous.some((address) => !sameAddress(address, recipient) && address.slice(0, 4) === recipient.slice(0, 4) && address.slice(-4) === recipient.slice(-4))) {
+    const flagged = nearAccounts.addresses.find((entry) => sameAddress(entry.address, recipient));
+    if (flagged) checks.push({
+      level: flagged.level ?? "warn",
+      reason: `Recipient appears in the NEAR account list${flagged.name ? `: ${flagged.name}` : ""}.`,
+      evidence_url: flagged.evidence_url ?? nearAccounts.source ?? EXPLORER[network] + encodeURIComponent(recipient),
+    });
+  }
+  checks.push(...lookalikeContractChecks(destinations, EXPLORER[network]));
+  for (const recipient of destinations) {
+    if (previous.some((address) => lookalike(address, recipient))) {
       checks.push({ level: "block", reason: `Recipient ${recipient} resembles an address you used before but is different.`, evidence_url: EXPLORER[network] + encodeURIComponent(recipient) });
     }
   }
@@ -255,13 +276,23 @@ export const screenTransaction = async (
   signerId: string,
   options: ScreenOptions,
 ): Promise<ScreenCheck[]> => {
-  const list = await addressList(options.listUrl);
+  const [list, nearAccounts] = await Promise.all([
+    addressList(options.listUrl, fallback as AddressList),
+    addressList(options.nearAccountListUrl, nearAccountsFallback as AddressList),
+  ]);
   const destinations = recipients(tx.receiverId, tx.actions as ConnectorAction[]);
   const previous = readHistory(network, signerId);
-  const checks = screenAddressChecks(destinations, previous, list, network);
+  const actions = tx.actions as ConnectorAction[];
+  const checks = [...screenAddressChecks(destinations, previous, list, network, nearAccounts), ...accessKeyChecks(tx.receiverId, actions, EXPLORER[network])];
+  if (checks.some((check) => check.level === "block")) return checks;
 
   const age = options.contractFreshnessHours ?? 24;
-  if (isNearAccountId(tx.receiverId)) checks.push(...await contractChecks(tx.receiverId, network, age));
+  const swaps = network === "mainnet" ? swapsIn(tx.receiverId, actions) : [];
+  const [contract, prices] = await Promise.all([
+    isNearAccountId(tx.receiverId) ? contractChecks(tx.receiverId, network, age) : [],
+    swaps.length ? fetchPrices([...new Set(swaps.flatMap((swap) => [swap.tokenIn, swap.tokenOut]))]) : {},
+  ]);
+  checks.push(...contract, ...swapChecks(swaps, prices, options.maxSwapLossPercent ?? 20, EXPLORER[network]));
   if (!checks.length) checks.push({ level: "ok", reason: `No known-bad recipient or recent contract change found. List version ${list.version}.`, evidence_url: list.source ?? OFAC_URL });
   return checks;
 };
@@ -273,7 +304,7 @@ export const approveScreen = async (checks: ScreenCheck[], options: ScreenOption
   if (!warnings.length) return;
   const reason = warnings.map((check) => `${check.reason} (${check.evidence_url})`).join("\n\n");
   const explanation = options.nearAi ? await explain(options.nearAi.apiKey, warnings) : undefined;
-  if (typeof document === "undefined") throw new ScreenBlockedError(warnings);
+  if (typeof document === "undefined") throw new Error("A browser is required to review transaction warnings");
   const previousFocus = document.activeElement as HTMLElement | null;
   await new Promise<void>((resolve, reject) => {
     const popup = new ScreenWarningPopup({ reason, explanation, onAccept: resolve, onReject: () => reject(new Error(reason)) });
