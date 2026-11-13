@@ -25,6 +25,7 @@ const RPC = {
   mainnet: "https://rpc.mainnet.fastnear.com",
   testnet: "https://near-testnet.drpc.org",
 };
+const recentHeights = new Map<string, { height: number; timestamp: number }>();
 
 export class ScreenBlockedError extends Error {
   constructor(readonly checks: ScreenCheck[]) {
@@ -40,6 +41,10 @@ class ScreenWarningPopup extends Popup<{}> {
 
   handlers() {
     super.handlers();
+    this.root.querySelector(".modal-content")?.setAttribute("role", "alertdialog");
+    this.root.querySelector(".modal-content")?.setAttribute("aria-modal", "true");
+    this.root.querySelector(".modal-content")?.setAttribute("aria-labelledby", "screen-warning-title");
+    this.root.querySelector(".modal-content")?.setAttribute("aria-describedby", "screen-warning-reason");
     this.addListener(".screen-continue", "click", () => {
       this.delegate.onAccept();
       this.destroy();
@@ -48,12 +53,26 @@ class ScreenWarningPopup extends Popup<{}> {
       this.delegate.onReject();
       this.destroy();
     });
+    this.addListener(".modal-content", "keydown", (event) => {
+      if ((event as KeyboardEvent).key !== "Tab") return;
+      const focusable = Array.from(this.root.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if ((event as KeyboardEvent).shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!(event as KeyboardEvent).shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
   }
 
   get dom() {
     return html`<div class="modal-container"><div class="modal-content">
-      <div class="modal-header"><p>Transaction warning</p></div>
-      <div class="modal-body"><p>${this.delegate.reason}</p>${this.delegate.explanation ? html`<p>${this.delegate.explanation}</p>` : ""}
+      <div class="modal-header"><p id="screen-warning-title">Transaction warning</p></div>
+      <div class="modal-body"><p id="screen-warning-reason">${this.delegate.reason}</p>${this.delegate.explanation ? html`<p>${this.delegate.explanation}</p>` : ""}
         <button class="screen-continue">Continue anyway</button><button class="screen-cancel">Cancel</button>
       </div>
     </div></div>`;
@@ -83,7 +102,7 @@ const sameAddress = (a: string, b: string) => {
 const recipients = (receiverId: string, actions: ConnectorAction[]) => {
   const found = new Set([receiverId]);
   for (const action of actions) {
-    if (action.type !== "FunctionCall" || !/withdraw/i.test(action.params.methodName)) continue;
+    if (action.type !== "FunctionCall" || !/(withdraw|transfer)/i.test(action.params.methodName)) continue;
     const args = action.params.args as Record<string, unknown>;
     for (const key of ["receiver_id", "receiverId", "recipient", "destination"]) {
       if (typeof args?.[key] === "string") found.add(args[key] as string);
@@ -91,6 +110,8 @@ const recipients = (receiverId: string, actions: ConnectorAction[]) => {
   }
   return [...found];
 };
+
+const isNearAccountId = (value: string) => value.length <= 64 && /^(?:[a-z0-9]+[._-])*[a-z0-9]+$/.test(value);
 
 const request = async (url: string, method: string, params: Record<string, unknown>) => {
   const response = await fetch(url, {
@@ -106,6 +127,9 @@ const request = async (url: string, method: string, params: Record<string, unkno
 };
 
 const blockAtTimestamp = async (url: string, latestHeight: number, timestamp: number) => {
+  const key = `${url}:${Math.round(timestamp / 3600000)}`;
+  const cached = recentHeights.get(key);
+  if (cached && Date.now() - cached.timestamp < 30000) return cached.height;
   let low = Math.max(1, latestHeight - 172800);
   let lowBlock = await request(url, "block", { block_id: low });
   while (Number(lowBlock.header.timestamp_nanosec) / 1e6 > timestamp && low > 1) {
@@ -119,10 +143,11 @@ const blockAtTimestamp = async (url: string, latestHeight: number, timestamp: nu
     if (Number(block.header.timestamp_nanosec) / 1e6 < timestamp) low = mid;
     else high = mid;
   }
+  recentHeights.set(key, { height: high, timestamp: Date.now() });
   return high;
 };
 
-const contractCheck = async (accountId: string, network: Network, hours: number): Promise<ScreenCheck> => {
+const contractChecks = async (accountId: string, network: Network, hours: number): Promise<ScreenCheck[]> => {
   const url = RPC[network];
   const evidence = `${EXPLORER[network]}${encodeURIComponent(accountId)}`;
   try {
@@ -135,16 +160,17 @@ const contractCheck = async (accountId: string, network: Network, hours: number)
       viewAccount({ block_id: oldHeight }),
     ]);
     if (currentAccount.status === "rejected") {
-      if (String(currentAccount.reason).includes("UNKNOWN_ACCOUNT")) return { level: "ok", reason: "Receiver account is not currently active.", evidence_url: evidence };
+      if (String(currentAccount.reason).includes("UNKNOWN_ACCOUNT")) return [{ level: "ok", reason: "Receiver account is not currently active.", evidence_url: evidence }];
       throw currentAccount.reason;
     }
+    const checks: ScreenCheck[] = [];
     if (oldAccount.status === "rejected") {
-      if (String(oldAccount.reason).includes("UNKNOWN_ACCOUNT")) return { level: "warn", reason: `Receiver account was created within the last ${hours} hours.`, evidence_url: evidence };
-      throw oldAccount.reason;
+      if (String(oldAccount.reason).includes("UNKNOWN_ACCOUNT")) checks.push({ level: "warn", reason: `Receiver account was created within the last ${hours} hours.`, evidence_url: evidence });
+      else throw oldAccount.reason;
     }
 
     const viewCode = (block: Record<string, unknown>) => request(url, "query", { request_type: "view_code", account_id: accountId, ...block }).catch((error) => {
-      if (String(error).includes("NO_CONTRACT_CODE")) return null;
+      if (String(error).includes("NO_CONTRACT_CODE") || String(error).includes("UNKNOWN_ACCOUNT")) return null;
       throw error;
     });
     const [currentCode, oldCode] = await Promise.all([
@@ -152,11 +178,11 @@ const contractCheck = async (accountId: string, network: Network, hours: number)
       viewCode({ block_id: oldHeight }),
     ]);
     if ((currentCode?.hash ?? null) !== (oldCode?.hash ?? null)) {
-      return { level: "warn", reason: `Receiver contract code changed within the last ${hours} hours.`, evidence_url: evidence };
+      checks.push({ level: "warn", reason: `Receiver contract code changed within the last ${hours} hours.`, evidence_url: evidence });
     }
-    return { level: "ok", reason: "Receiver account and contract are unchanged across the freshness window.", evidence_url: evidence };
+    return checks.length ? checks : [{ level: "ok", reason: "Receiver account and contract are unchanged across the freshness window.", evidence_url: evidence }];
   } catch (error) {
-    return { level: "warn", reason: `Contract freshness could not be verified: ${String(error)}`, evidence_url: `${url}` };
+    return [{ level: "warn", reason: `Contract freshness could not be verified: ${String(error)}`, evidence_url: `${url}` }];
   }
 };
 
@@ -235,7 +261,7 @@ export const screenTransaction = async (
   const checks = screenAddressChecks(destinations, previous, list, network);
 
   const age = options.contractFreshnessHours ?? 24;
-  checks.push(...await Promise.all(destinations.filter((recipient) => /^[a-z0-9._-]{2,64}$/.test(recipient)).map((recipient) => contractCheck(recipient, network, age))));
+  if (isNearAccountId(tx.receiverId)) checks.push(...await contractChecks(tx.receiverId, network, age));
   if (!checks.length) checks.push({ level: "ok", reason: `No known-bad recipient or recent contract change found. List version ${list.version}.`, evidence_url: list.source ?? OFAC_URL });
   return checks;
 };
@@ -248,10 +274,12 @@ export const approveScreen = async (checks: ScreenCheck[], options: ScreenOption
   const reason = warnings.map((check) => `${check.reason} (${check.evidence_url})`).join("\n\n");
   const explanation = options.nearAi ? await explain(options.nearAi.apiKey, warnings) : undefined;
   if (typeof document === "undefined") throw new ScreenBlockedError(warnings);
+  const previousFocus = document.activeElement as HTMLElement | null;
   await new Promise<void>((resolve, reject) => {
     const popup = new ScreenWarningPopup({ reason, explanation, onAccept: resolve, onReject: () => reject(new Error(reason)) });
     popup.create({ show: true });
-  });
+    popup.root.querySelector<HTMLButtonElement>(".screen-continue")?.focus();
+  }).finally(() => previousFocus?.focus());
 };
 
 export const screenAndSend = async <T>(
@@ -265,6 +293,6 @@ export const screenAndSend = async <T>(
   const checks = (await Promise.all(txs.map((tx) => screenTransaction(tx, network, signerId, options)))).flat();
   await approveScreen(checks, options);
   const result = await send();
-  writeHistory(network, signerId, txs.map((tx) => tx.receiverId));
+  writeHistory(network, signerId, txs.flatMap((tx) => recipients(tx.receiverId, tx.actions as ConnectorAction[])));
   return result;
 };

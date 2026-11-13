@@ -35,6 +35,20 @@ const connector = new NearConnector();
 connector.on("wallet:signOut", async () => {});
 ```
 
+### Screen transactions before wallet approval
+
+Screening is off by default. Set `screen` to run checks before a transaction reaches sandboxed, injected, or parent-frame wallets:
+
+```ts
+const connector = new NearConnector({
+  screen: { contractFreshnessHours: 24 }
+});
+```
+
+The connector checks transfer and withdrawal recipients against its bundled, versioned OFAC SDN digital-currency address list. Set `listUrl` to fetch a JSON list with the same `{ version, addresses: [{ address, currency, name }] }` shape; a failed request uses the bundled Treasury snapshot. It also compares the receiver account and contract code at the current block with their state at the configured age, and stores successful destinations locally to detect address-poisoning lookalikes. A block stops the transaction. A warning opens the connector popup and requires the user to choose whether to continue.
+
+Set `nearAi: { apiKey }` to request a plain-language explanation from NEAR AI Cloud. The screening result does not depend on that request. The browser sends this key to NEAR AI Cloud, so do not use a credential that must remain private in a public dApp bundle.
+
 ### Listen for "sign in" events
 
 ```ts

@@ -1,5 +1,6 @@
 # Unreleased
 
+- Add opt-in pre-sign transaction screening for OFAC-listed recipients, address-poisoning lookalikes, recently created accounts, and recently changed contract code. Warnings use the connector popup and require confirmation before the wallet receives the transaction; blocks cannot be overridden.
 - Sandboxed wallets: a result or error that `postMessage` cannot clone (e.g. an injected wallet throwing an object that holds functions) no longer throws `DataCloneError` out of the host's message handler and leaves the wallet's request hanging. Errors are retried as plain `{ name, message, code }` data; an uncloneable success result is reported to the wallet as a failure.
 
 # 0.12.0
